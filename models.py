@@ -19,6 +19,7 @@ class DAestimator(nn.Module):
         context_output, context_hidden = context(encoder_hidden, context_hidden)
 
         decoder_output = decoder(context_hidden)
+        decoder_output = decoder_output.squeeze(1)
 
         loss += criterion(decoder_output, Y_tensor)
 
@@ -35,8 +36,6 @@ class DAestimator(nn.Module):
         encoder_hidden = encoder(X_tensor)
         context_output, context_hidden = context(encoder_hidden, context_hidden)
         decoder_output = decoder(context_hidden)
+        decoder_output = decoder_output.squeeze(1)
         loss += criterion(decoder_output, Y_tensor)
-
         return loss.data[0], context_hidden
-
-

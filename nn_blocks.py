@@ -14,23 +14,23 @@ class DAEncoder(nn.Module):
         embedding = F.tanh(self.eh(self.xe(DA)))
         return embedding
 
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size)
+    def initHidden(self, device):
+        return torch.zeros(self.hidden_size).to(device)
 
 
 class DAContextEncoder(nn.Module):
     def __init__(self, da_hidden):
         super(DAContextEncoder, self).__init__()
         self.hidden_size = da_hidden
-        self.hh = nn.GRU(da_hidden, da_hidden)
+        self.hh = nn.GRU(da_hidden, da_hidden, batch_first=True)
 
     def forward(self, input_hidden, prev_hidden):
-        output = input_hidden.view(1,1,-1)
+        output = input_hidden.view(1, 1, -1)
         output, hidden = self.hh(output, prev_hidden)
         return output, hidden
 
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size)
+    def initHidden(self, device):
+        return torch.zeros(1, 1, self.hidden_size).to(device)
 
 
 class DADecoder(nn.Module):
@@ -38,10 +38,9 @@ class DADecoder(nn.Module):
         super(DADecoder, self).__init__()
         self.he = nn.Linear(da_hidden, da_embed_size)
         self.ey = nn.Linear(da_embed_size, da_input_size)
-        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, hidden):
-        pred = self.softmax(self.ey(F.tanh(self.he(hidden))))
+        pred = self.ey(F.tanh(self.he(hidden)))
         return pred
 
 
@@ -60,8 +59,8 @@ class UtteranceEncoder(nn.Module):
         output, hidden = self.hh(output, hidden)
         return output, hidden
 
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size)
+    def initHidden(self, device):
+        return torch.zeros(1, 1, self.hidden_size).to(device)
 
 
 class UtteranceContextEncoder(nn.Module):
@@ -78,7 +77,7 @@ class UtteranceContextEncoder(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size)
+        return torch.zeros(1, 1, self.hidden_size).to(device)
 
 
 

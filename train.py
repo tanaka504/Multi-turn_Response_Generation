@@ -45,6 +45,7 @@ def train():
     decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'], da_hidden=config['DA_HIDDEN']).to(device)
     context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
     model = DAestimator().to(device)
+    print('Success construct model...')
 
     lr = config['lr']
     plot_losses = []
@@ -58,72 +59,86 @@ def train():
 
     criterion = nn.CrossEntropyLoss()
 
+    print('---start training---')
+
     start = time.time()
     k = 0
     for e in range(config['EPOCH']):
-        context_hidden = context.initHidden()
-        context_opt.zero_grad()
-        encoder_opt.zero_grad()
-        decoder_opt.zero_grad()
 
-        for i in range(0, len(X_train) -1):
-            X_tensor = torch.tensor(X_train[i]).to(device)
-            Y_tensor = torch.tensor(Y_train[i]).to(device)
+        for seq_idx in range(0, len(X_train)):
+            print('\rsequence {}/{} training...'.format(seq_idx+1, len(X_train)), end='')
 
-            last = True if i + 1 == len(X_train) -1 else False
+            X_seq = X_train[seq_idx]
+            Y_seq = Y_train[seq_idx]
+            assert len(X_seq) == len(Y_seq), 'Unexpect sequence length'
+            context_hidden = context.initHidden(device)
+            context_opt.zero_grad()
+            encoder_opt.zero_grad()
+            decoder_opt.zero_grad()
 
-            if last:
-                loss, context_hidden = model.forward(X_tensor=X_tensor, Y_tensor=Y_tensor,
-                                                     encoder=encoder, decoder=decoder, context=context,
-                                                     context_hidden=context_hidden,
-                                                     criterion=criterion, last=last)
-                print_total_loss += loss
-                plot_total_loss += loss
-                encoder_opt.step()
-                decoder_opt.step()
-                context_opt.step()
-            else:
-                context_hidden = model.forward(X_tensor=X_tensor, Y_tensor=Y_tensor,
-                                               encoder=encoder, decoder=decoder, context=context,
-                                               context_hidden=context_hidden,
-                                               criterion=criterion, last=last)
+            for i in range(0, len(X_seq)):
+                X_tensor = torch.tensor([X_seq[i]]).to(device)
+                Y_tensor = torch.tensor([Y_seq[i]]).to(device)
+    
+                last = True if i + 1 == len(X_train) - 1 else False
+    
+                if last:
+                    loss, context_hidden = model.forward(X_tensor=X_tensor, Y_tensor=Y_tensor,
+                                                         encoder=encoder, decoder=decoder, context=context,
+                                                         context_hidden=context_hidden,
+                                                         criterion=criterion, last=last)
+                    print_total_loss += loss
+                    plot_total_loss += loss
+                    encoder_opt.step()
+                    decoder_opt.step()
+                    context_opt.step()
 
-        valid_loss = evaluate(X_valid=X_valid, Y_valid=Y_valid,
-                              model=model, encoder=encoder, decoder=decoder, context=context)
+                else:
+                    context_hidden = model.forward(X_tensor=X_tensor, Y_tensor=Y_tensor,
+                                                   encoder=encoder, decoder=decoder, context=context,
+                                                   context_hidden=context_hidden,
+                                                   criterion=criterion, last=last)
+
+            valid_loss = evaluate(X_valid=X_valid, Y_valid=Y_valid,
+                                model=model, encoder=encoder, decoder=decoder, context=context)
 
 
-        if e + 1 % config['LOGGING_FREQ'] == 0:
-            print_loss_avg = print_total_loss / config['LOGGING_FREQ']
-            print_total_loss = 0
-            print('steps %d\tloss %.4f\tvalid loss %.4f' % (k, print_loss_avg, valid_loss))
-            plot_loss_avg = plot_total_loss / config['LOGGING_FREQ']
-            plot_losses.append(plot_loss_avg)
-            plot_total_loss = 0
+            if e + 1 % config['LOGGING_FREQ'] == 0:
+                print_loss_avg = print_total_loss / config['LOGGING_FREQ']
+                print_total_loss = 0
+                print('steps %d\tloss %.4f\tvalid loss %.4f' % (k, print_loss_avg, valid_loss))
+                plot_loss_avg = plot_total_loss / config['LOGGING_FREQ']
+                plot_losses.append(plot_loss_avg)
+                plot_total_loss = 0
 
-        if e + 1 % config['SAVE_MODEL'] == 0:
-            print('saving model')
-            torch.save(encoder.state_dict(), os.path.join(config['log_dir'], 'enc_state{}.model'.format(e + 1)))
-            torch.save(decoder.state_dict(), os.path.join(config['log_dir'], 'dec_state{}.model'.format(e + 1)))
-            torch.save(context.state_dict(), os.path.join(config['log_dir'], 'context_state{}.model'.format(e + 1)))
+            if e + 1 % config['SAVE_MODEL'] == 0:
+                print('saving model')
+                torch.save(encoder.state_dict(), os.path.join(config['log_dir'], 'enc_state{}.model'.format(e + 1)))
+                torch.save(decoder.state_dict(), os.path.join(config['log_dir'], 'dec_state{}.model'.format(e + 1)))
+                torch.save(context.state_dict(), os.path.join(config['log_dir'], 'context_state{}.model'.format(e + 1)))
 
 
     print('Finish training | exec time: %.4f [sec]' % (start - time.time()))
 
 def evaluate(X_valid, Y_valid, model, encoder, decoder, context):
 
-    context_hidden = context.initHidden()
+    context_hidden = context.initHidden(device)
     criterion = nn.CrossEntropyLoss()
     total_loss = 0
 
-    for i in range(0, len(X_valid) - 1):
-        X_tensor = X_valid[i]
-        Y_tensor = Y_valid[i]
+    for seq_idx in range(0, len(X_valid) - 1):
+        X_seq = X_valid[seq_idx]
+        Y_seq = Y_valid[seq_idx]
+        assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in evaluate'
 
-        loss, context_hidden = model.forward(X_tensor=X_tensor, Y_tensor=Y_tensor,
-                                             encoder=encoder, decoder=decoder, context=context,
-                                             context_hidden=context_hidden,
-                                             criterion=criterion)
-        total_loss += loss
+        for i in range(0, len(X_seq)):
+            X_tensor = torch.tensor([X_seq[i]]).to(device)
+            Y_tensor = torch.tensor([Y_seq[i]]).to(device)
+            loss, context_hidden = model.evaluate(X_tensor=X_tensor, Y_tensor=Y_tensor,
+                                                 encoder=encoder, decoder=decoder, context=context,
+                                                 context_hidden=context_hidden,
+                                                 criterion=criterion)
+            total_loss += loss
     return total_loss
 
 if __name__ == '__main__':
