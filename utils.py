@@ -41,8 +41,8 @@ class da_Vocab:
         return vocab
 
     def tokenize(self, X_tensor, Y_tensor):
-        X_tensor = [[self.word2id[token] for token in sentence] for sentence in X_tensor]
-        Y_tensor = [[self.word2id[token] for token in sentence] for sentence in Y_tensor]
+        X_tensor = [[self.word2id[token] if token in self.word2id else self.word2id['<UNK>'] for token in sentence] for sentence in X_tensor]
+        Y_tensor = [[self.word2id[token] if token in self.word2id else self.word2id['<UNK>'] for token in sentence] for sentence in Y_tensor]
         return X_tensor, Y_tensor
 
 
