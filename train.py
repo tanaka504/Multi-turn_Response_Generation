@@ -10,11 +10,12 @@ from nn_blocks import *
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--expr', default='DAonly')
+parser.add_argument('--expr', '-e', default='DAonly', help='input experiment config')
+parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
 args = parser.parse_args()
 
 if torch.cuda.is_available():
-    torch.cuda.set_device(0)
+    torch.cuda.set_device(args.gpu)
     device = 'cuda'
 else:
     device = 'cpu'
