@@ -53,8 +53,7 @@ class UtteranceEncoder(nn.Module):
         self.hh = nn.GRU(utterance_hidden, utterance_hidden, num_layers=1, batch_first=True)
 
     def forward(self, X, hidden):
-        batch_size, seq_len = X.size()
-        embedding = F.tanh(self.eh(self.xe(X)))
+        embedding = F.tanh(self.eh(self.xe(X))).view(1, 1, -1)
         output = embedding
         output, hidden = self.hh(output, hidden)
         return output, hidden
@@ -64,19 +63,17 @@ class UtteranceEncoder(nn.Module):
 
 
 class UtteranceContextEncoder(nn.Module):
-    def __init__(self, utterance_hidden_size, da_hidden_size, context_hidden):
+    def __init__(self, utterance_hidden_size):
         super(UtteranceContextEncoder, self).__init__()
         self.hidden_size = utterance_hidden_size
-        self.concat = torch.cat((utterance_hidden_size, da_hidden_size), 0)
-        self.linear = nn.Linear(utterance_hidden_size + da_hidden_size, context_hidden)
-        self.hh = nn.GRU(context_hidden, context_hidden)
+        self.hh = nn.GRU(utterance_hidden_size, utterance_hidden_size, batch_first=True)
 
     def forward(self, input_hidden, prev_hidden):
         output = input_hidden.view(1, 1, -1)
         output, hidden = self.hh(output, prev_hidden)
         return output, hidden
 
-    def initHidden(self):
+    def initHidden(self, device):
         return torch.zeros(1, 1, self.hidden_size).to(device)
 
 
