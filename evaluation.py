@@ -14,7 +14,7 @@ parser.add_argument('--expr', default='DAonly')
 parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
 args = parser.parse_args()
 
-model_num = 6
+model_num = 8
 
 def evaluate(experiment):
     print('load vocab')
@@ -47,7 +47,7 @@ def evaluate(experiment):
     utt_context = None
     utt_decoder = None
     if config['use_utt']:
-        utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN']).to(device)
+        utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
         utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_state{}.model'.format(model_num))))
     if config['use_uttcontext']:
         utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_HIDDEN']).to(device)
@@ -72,7 +72,7 @@ def evaluate(experiment):
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)
             Y_tensor = torch.tensor(Y_seq[i]).to(device)
             if config['use_utt']:
-                XU_tensor = torch.tensor([XU_seq[i]]).to(device)
+                XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
             else:
                 XU_tensor = None
 

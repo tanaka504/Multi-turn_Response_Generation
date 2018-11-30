@@ -79,13 +79,13 @@ class DApredictModel(nn.Module):
         da_context_output, da_context_hidden = da_context(encoder_hidden, da_context_hidden)
 
         if config['use_utt']:
-            utt_encoder_hidden = utt_encoder.initHidden(device)
+            utt_encoder_hidden = utt_encoder.initHidden(1, device)
             seq_len = X_utt.size()[1]
             for ei in range(seq_len):
                 utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt[ei], utt_encoder_hidden) # (1, 1, UTT_HIDDEN)
             dec_hidden = torch.cat((da_context_output, utt_encoder_output), dim=2) # (1, 1, DEC_HIDDEN)
         elif config['use_uttcontext']:
-            utt_encoder_hidden = utt_encoder.initHidden(device)
+            utt_encoder_hidden = utt_encoder.initHidden(1, device)
             seq_len = X_utt.size()[1]
             for ei in range(seq_len):
                 utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt[ei], utt_encoder_hidden)  # (1, 1, UTT_HIDDEN)

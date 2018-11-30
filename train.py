@@ -269,8 +269,8 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model,
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)
             Y_tensor = torch.tensor([[Y_seq[i]]]).to(device)
             if config['use_utt']:
-                XU_tensor = torch.tensor(XU_seq[i]).to(device)
-                YU_tensor = torch.tensor(YU_seq[i]).to(device)
+                XU_tensor = torch.tensor([XU_seq[i]]).to(device)
+                YU_tensor = torch.tensor([YU_seq[i]]).to(device)
             else:
                 XU_tensor, YU_tensor = None, None
 
