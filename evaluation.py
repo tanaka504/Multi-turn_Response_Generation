@@ -8,6 +8,10 @@ from nn_blocks import *
 from utils import *
 from train import initialize_env, create_DAdata, create_Uttdata, device
 import argparse
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--expr', default='DAonly')
@@ -58,7 +62,8 @@ def evaluate(experiment):
     da_context_hidden = context.initHidden(1, device)
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
 
-    correct = 0
+    true = []
+    pred = []
 
     for seq_idx in range(0, len(X_test)):
         print('\r{}/{} sequences evaluating'.format(seq_idx+1, len(X_test)), end='')
@@ -82,11 +87,31 @@ def evaluate(experiment):
                                                            utt_encoder=utt_encoder, utt_context=utt_context,
                                                            utt_context_hidden=utt_context_hidden, config=config)
             pred_idx = torch.argmax(decoder_output)
-            if pred_idx.item() == Y_tensor.item(): correct += 1
+            true.append(Y_tensor.item())
+            pred.append(pred_idx.item())
+
     print()
 
-    return correct / len(X_test)
+    return true, pred
+
+def macro_average(y_true, y_pred):
+    p = precision_score(y_true=y_true, y_pred=y_pred, average='macro')
+    r = recall_score(y_true=y_true, y_pred=y_pred, average='macro')
+    f = f1_score(y_true=y_true, y_pred=y_pred, average='macro')
+    return p, r, f
+
+def save_cmx(y_true, y_pred, expr):
+    labels = sorted(list(set(y_true)))
+    cmx_data = confusion_matrix(y_true, y_pred, labels=labels)
+
+    df_cmx = pd.DataFrame(cmx_data, index=labels, columns=labels)
+
+    plt.figure(figsize=(10,7))
+    sns.heatmap(df_cmx, annot=True)
+    plt.savefig('./data/images/cmx_{}.png'.format(expr))
 
 if __name__ == '__main__':
-    true_rate = evaluate(args.expr)
-    print(true_rate)
+    true, pred = evaluate(args.expr)
+    p, r, f = macro_average(true, pred)
+    print(p, r, f)
+    save_cmx(true, pred, args.expr)
