@@ -8,17 +8,16 @@ from nn_blocks import *
 from utils import *
 from train import initialize_env, create_DAdata, create_Uttdata, device
 import argparse
-from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, accuracy_score
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from collections import Counter
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--expr', default='DAonly')
 parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
 args = parser.parse_args()
-
-model_num = 8
 
 def evaluate(experiment):
     print('load vocab')
@@ -43,19 +42,19 @@ def evaluate(experiment):
     context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
 
     # loading weight
-    encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_state{}.model'.format(model_num))))
-    decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_state{}.model'.format(model_num))))
-    context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_state{}.model'.format(model_num))))
+    encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_beststate.model')))
+    decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_beststate.model')))
+    context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_beststate.model')))
 
     utt_encoder = None
     utt_context = None
     utt_decoder = None
     if config['use_utt']:
         utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
-        utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_state{}.model'.format(model_num))))
+        utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_beststate.model')))
     if config['use_uttcontext']:
         utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_HIDDEN']).to(device)
-        utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_state{}.model'.format(model_num))))
+        utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_beststate.model')))
 
     model = DApredictModel().to(device)
 
@@ -91,14 +90,17 @@ def evaluate(experiment):
             pred.append(pred_idx.item())
 
     print()
+    true_detok = [da_vocab.id2word[label] for label in true]
+    pred_detok = [da_vocab.id2word[label] for label in pred]
 
-    return true, pred
+    return true, pred, true_detok, pred_detok
 
-def macro_average(y_true, y_pred):
-    p = precision_score(y_true=y_true, y_pred=y_pred, average='macro')
-    r = recall_score(y_true=y_true, y_pred=y_pred, average='macro')
-    f = f1_score(y_true=y_true, y_pred=y_pred, average='macro')
+def calc_average(y_true, y_pred, average):
+    p = precision_score(y_true=y_true, y_pred=y_pred, average=average)
+    r = recall_score(y_true=y_true, y_pred=y_pred, average=average)
+    f = f1_score(y_true=y_true, y_pred=y_pred, average=average)
     return p, r, f
+
 
 def save_cmx(y_true, y_pred, expr):
     labels = sorted(list(set(y_true)))
@@ -106,12 +108,33 @@ def save_cmx(y_true, y_pred, expr):
 
     df_cmx = pd.DataFrame(cmx_data, index=labels, columns=labels)
 
-    plt.figure(figsize=(10,7))
-    sns.heatmap(df_cmx, annot=True)
+    plt.figure(figsize=(18, 15))
+    plt.rcParams['font.size'] = 18
+    sns.heatmap(df_cmx, annot=False)
+    plt.xlabel('pre')
+    plt.ylabel('next')
     plt.savefig('./data/images/cmx_{}.png'.format(expr))
 
+
 if __name__ == '__main__':
-    true, pred = evaluate(args.expr)
-    p, r, f = macro_average(true, pred)
-    print(p, r, f)
-    save_cmx(true, pred, args.expr)
+    # true, pred, true_detok, pred_detok = evaluate(args.expr)
+    # c = Counter(true_detok)
+    # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
+    #         xlabel='dialogue act', ylabel='freq', imgname='label-freq.png')
+    # c = Counter(pred_detok)
+    # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
+    #         xlabel='dialogue act', ylabel='pred freq', imgname='predlabel-freq.png')
+
+    # p, r, f = calc_average(true, pred, 'micro')
+    # print('p: {}, r: {}, f: {}'.format(p, r, f))
+    # acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
+    # print('accuracy: ', acc)
+    # save_cmx(true_detok, pred_detok, args.expr)
+
+
+    config = initialize_env(args.expr)
+    preDA, nextDA, _, _, _, _ = create_DAdata(config=config)
+    preDA = [label for conv in preDA for label in conv]
+    nextDA = [label for conv in nextDA for label in conv]
+    save_cmx(y_true=preDA, y_pred=nextDA, expr='bias')
+
