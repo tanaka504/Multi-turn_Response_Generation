@@ -231,7 +231,7 @@ def train(experiment):
 
 def validation(Y_valid, XU_valid, Vturn, model,
                da_decoder,
-               utt_encoder, utt_context, utt_decoder, config):
+               utt_encoder, utt_context, config):
 
     utt_context_hidden = utt_context.initHidden(1, device)
     criterion = nn.CrossEntropyLoss()
