@@ -8,17 +8,14 @@ parallel_pattern = re.compile(r'^(.+?)(\t)(.+?)$')
 file_pattern = re.compile(r'^sw\_([0-9]+?)\_([0-9]+?)\.jsonlines$')
 
 damsl_align = {'<Uninterpretable>': ['%', 'x'],
-               '<Self>': ['t1'],
-               '<3rd>': ['t3'],
-               '<Statement>': ['sd', 'sv', '^2', 'no'],
+               '<Statement>': ['sd', 'sv', '^2', 'no', 't3', 't1', 'oo', 'cc', 'co', 'oo_co_cc'],
                '<Question>': ['q', 'qy', 'qw', 'qy^d', 'bh', 'qo', 'qh', 'br', 'qrr', '^g', 'qw^d'],
                '<Directive>': ['ad'],
                '<Propose>': ['p'],
-               '<Future>': ['oo', 'cc', 'co', 'oo_co_cc'],
+               '<Future>': [],
                '<Greeting>': ['fp', 'fc'],
-               '<Thanking>': ['ft'],
                '<Apology>': ['fa', 'nn', 'ar', 'ng', 'nn^e', 'arp', 'nd', 'arp_nd'],
-               '<Agreement>': ['aa', 'aap', 'am', 'aap_am'],
+               '<Agreement>': ['aa', 'aap', 'am', 'aap_am', 'ft'],
                '<Understanding>': ['b', 'bf', 'ba', 'bk', 'na', 'ny', 'ny^e'],
                '<Other>': ['o', 'fo', 'bc', 'by', 'fw', 'h', '^q', 'b^m', '^h', 'bd', 'fo_o_fw_"_by_bc'],
                '<turn>': ['<turn>']}
@@ -33,7 +30,7 @@ class da_Vocab:
         self.construct()
 
     def construct(self):
-        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<PAD>': 3, '<turn>': 4}
+        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<PAD>': 3}
         vocab_count = {}
 
         for post, cmnt in zip(self.posts, self.cmnts):
@@ -71,7 +68,7 @@ class utt_Vocab:
         self.construct()
 
     def construct(self):
-        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<ConvPAD>': 4, '<turn>': 5}
+        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<ConvPAD>': 4}
         vocab_count = {}
 
         for post, cmnt in zip(self.posts, self.cmnts):

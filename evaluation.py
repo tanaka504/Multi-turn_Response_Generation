@@ -13,6 +13,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from collections import Counter
+from pprint import pprint
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--expr', default='DAonly')
@@ -65,7 +66,7 @@ def evaluate(experiment):
     pred = []
 
     for seq_idx in range(0, len(X_test)):
-        print('\r{}/{} sequences evaluating'.format(seq_idx+1, len(X_test)), end='')
+        print('\r{}/{} conversation evaluating'.format(seq_idx+1, len(X_test)), end='')
         X_seq = X_test[seq_idx]
         Y_seq = Y_test[seq_idx]
         if config['use_utt']:
@@ -95,11 +96,12 @@ def evaluate(experiment):
 
     return true, pred, true_detok, pred_detok
 
-def calc_average(y_true, y_pred, average):
-    p = precision_score(y_true=y_true, y_pred=y_pred, average=average)
-    r = recall_score(y_true=y_true, y_pred=y_pred, average=average)
-    f = f1_score(y_true=y_true, y_pred=y_pred, average=average)
-    return p, r, f
+def calc_average(y_true, y_pred):
+    p = precision_score(y_true=y_true, y_pred=y_pred, average='macro')
+    r = recall_score(y_true=y_true, y_pred=y_pred, average='macro')
+    f = f1_score(y_true=y_true, y_pred=y_pred, average='macro')
+    acc = accuracy_score(y_true=y_true, y_pred=y_pred)
+    print('p: {} | r: {} | f: {} | acc: {}'.format(p, r, f, acc))
 
 
 def save_cmx(y_true, y_pred, expr):
@@ -117,7 +119,7 @@ def save_cmx(y_true, y_pred, expr):
 
 
 if __name__ == '__main__':
-    # true, pred, true_detok, pred_detok = evaluate(args.expr)
+    true, pred, true_detok, pred_detok = evaluate(args.expr)
     # c = Counter(true_detok)
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='freq', imgname='label-freq.png')
@@ -125,16 +127,17 @@ if __name__ == '__main__':
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='pred freq', imgname='predlabel-freq.png')
 
-    # p, r, f = calc_average(true, pred, 'micro')
-    # print('p: {}, r: {}, f: {}'.format(p, r, f))
-    # acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
-    # print('accuracy: ', acc)
-    # save_cmx(true_detok, pred_detok, args.expr)
+    calc_average(true, pred)
+    acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
+    print('accuracy: ', acc)
+    save_cmx(true_detok, pred_detok, args.expr)
 
 
-    config = initialize_env(args.expr)
-    preDA, nextDA, _, _, _, _ = create_DAdata(config=config)
-    preDA = [label for conv in preDA for label in conv]
-    nextDA = [label for conv in nextDA for label in conv]
-    save_cmx(y_true=preDA, y_pred=nextDA, expr='bias')
+    # config = initialize_env(args.expr)
+    # _, _, _, _, preDA, nextDA = create_DAdata(config=config)
+    # preDA = [label for conv in preDA for label in conv]
+    # nextDA = [label for conv in nextDA for label in conv]
+    # c = Counter(nextDA)
+    # pprint({k: v for k, v in c.items()})
+    # save_cmx(y_true=preDA, y_pred=nextDA, expr='bias')
 
