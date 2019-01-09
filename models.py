@@ -200,8 +200,10 @@ class baseline(nn.Module):
 
         utt_encoder_hidden = utt_encoder.initHidden(1, device)
         utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (1, 1, UTT_HIDDEN)
-        utt_context_output, utt_context_hidden = utt_context(utt_encoder_hidden, utt_context_hidden) # (1, 1, UTT_HIDDEN)
-        dec_hidden = torch.cat((utt_context_output, turn), dim=2) # (1, 1, DEC_HIDDEN)
+        turn = turn.float()
+        turn = turn.unsqueeze(1)  # (batch_size, 1, 1)
+        utt_encoder_hidden = torch.cat((utt_encoder_output, turn), dim=2)  # (batch_size, 1, UTT_HIDDEN)
+        dec_hidden, utt_context_hidden = utt_context(utt_encoder_hidden, utt_context_hidden) # (1, 1, UTT_HIDDEN)
 
 
         decoder_output = da_decoder(dec_hidden)
@@ -218,6 +220,9 @@ class baseline(nn.Module):
         seq_len = X_utt.size()[1]
         for ei in range(seq_len):
             utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt[ei], utt_encoder_hidden)  # (1, 1, UTT_HIDDEN)
+        turn = turn.float()
+        turn = turn.unsqueeze(1)  # (batch_size, 1, 1)
+        utt_encoder_hidden = torch.cat((utt_encoder_output, turn), dim=2)  # (batch_size, 1, UTT_HIDDEN)
         utt_context_output, utt_context_hidden = utt_context(utt_encoder_hidden, utt_context_hidden) # (1, 1, UTT_HIDDEN)
         dec_hidden = torch.cat((utt_context_output, turn), dim=2) # (1, 1, DEC_HIDDEN)
 
