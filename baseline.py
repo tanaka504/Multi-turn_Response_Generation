@@ -11,7 +11,7 @@ import argparse
 import random
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--expr', '-e', default='DAonly', help='input experiment config')
+parser.add_argument('--expr', '-e', default='baseline', help='input experiment config')
 parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
 args = parser.parse_args()
 
