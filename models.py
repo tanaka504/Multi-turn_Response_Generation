@@ -175,6 +175,7 @@ class baseline(nn.Module):
 
         utt_encoder_hidden = utt_encoder.initHidden(step_size, device)
         utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
+        turn = turn.float()
         turn = turn.unsqueeze(1) # (batch_size, 1, 1)
         utt_encoder_hidden = torch.cat((utt_encoder_output, turn), dim=2) # (batch_size, 1, UTT_HIDDEN)
         dec_hidden, utt_context_hidden = utt_context(utt_encoder_hidden, utt_context_hidden) # (batch_size, 1, UTT_HIDDEN)
