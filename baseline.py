@@ -108,7 +108,7 @@ def train(experiment):
     utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
     utt_encoder_opt = optim.Adam(utt_encoder.parameters(), lr=lr)
 
-    utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_HIDDEN']).to(device)
+    utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
     utt_context_opt = optim.Adam(utt_context.parameters(), lr=lr)
     model = baseline().to(device)
     print('Success construct model...')
