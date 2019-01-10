@@ -276,11 +276,9 @@ def evaluate(experiment):
     print('load models')
     decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
                         da_hidden=config['DEC_HIDDEN']).to(device)
-    context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
 
     # loading weight
     decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_beststate.model')))
-    context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_beststate.model')))
 
     utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
     utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_beststate.model')))
@@ -333,3 +331,4 @@ def calc_average(y_true, y_pred):
 
 if __name__ == '__main__':
     train(args.expr)
+    evaluate(args.expr)
