@@ -267,7 +267,7 @@ def evaluate(experiment):
         XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test = create_Uttdata(config)
         utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
 
-    X_test, Y_test = da_vocab.tokenize(X_test, Y_test)
+    _, Y_test = da_vocab.tokenize(X_test, Y_test)
 
     Y_test, _ = preprocess(Y_test)
     XU_test, _ = utt_vocab.tokenize(XU_test, YU_test)
@@ -282,7 +282,7 @@ def evaluate(experiment):
 
     utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
     utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_beststate.model')))
-    utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_HIDDEN']).to(device)
+    utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
     utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_beststate.model')))
 
     model = baseline().to(device)
@@ -293,22 +293,18 @@ def evaluate(experiment):
     pred = []
 
     for seq_idx in range(0, len(X_test)):
-        print('\r{}/{} conversation evaluating'.format(seq_idx+1, len(X_test)), end='')
-        X_seq = X_test[seq_idx]
+        print('\r{}/{} conversation evaluating'.format(seq_idx+1, len(Y_test)), end='')
         Y_seq = Y_test[seq_idx]
+        turn_seq = turn[seq_idx]
         if config['use_utt']:
             XU_seq = XU_test[seq_idx]
-        assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in test data'
 
-        for i in range(0, len(X_seq)):
-            X_tensor = torch.tensor([[X_seq[i]]]).to(device)
+        for i in range(0, len(Y_seq)):
+            turn_tensor = torch.tensor([[turn_seq]]).to(device)
             Y_tensor = torch.tensor(Y_seq[i]).to(device)
-            if config['use_utt']:
-                XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
-            else:
-                XU_tensor = None
+            XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
 
-            decoder_output, utt_context_hidden = model.predict(X_utt=XU_tensor, turn=turn,
+            decoder_output, utt_context_hidden = model.predict(X_utt=XU_tensor, turn=turn_tensor,
                                                                da_decoder=decoder,
                                                                utt_encoder=utt_encoder, utt_context=utt_context,
                                                                utt_context_hidden=utt_context_hidden, config=config)
