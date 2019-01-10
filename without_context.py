@@ -236,26 +236,25 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model,
     total_loss = 0
     k = 0
 
-    X_seq = X_valid
-    Y_seq = Y_valid
-    if config['use_utt']:
-        XU_seq = XU_valid
-        YU_seq = YU_valid
+    for seq_idx in range(len(X_valid)):
+        X_seq = X_valid[seq_idx]
+        Y_seq = Y_valid[seq_idx]
+        if config['use_utt']:
+            XU_seq = XU_valid[seq_idx]
+            YU_seq = YU_valid[seq_idx]
 
-    assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in evaluate'
+        X_tensor = torch.tensor([X_seq]).to(device)
+        Y_tensor = torch.tensor([Y_seq]).to(device)
+        if config['use_utt']:
+            XU_tensor = torch.tensor([XU_seq]).to(device)
+            # YU_tensor = torch.tensor([YU_seq]).to(device)
+        else:
+            XU_tensor, YU_tensor = None, None
 
-    X_tensor = torch.tensor(X_seq).to(device)
-    Y_tensor = torch.tensor(Y_seq).to(device)
-    if config['use_utt']:
-        XU_tensor = torch.tensor(XU_seq).to(device)
-        YU_tensor = torch.tensor(YU_seq).to(device)
-    else:
-        XU_tensor, YU_tensor = None, None
-
-    loss = model.evaluate(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor,
-                          da_encoder=da_encoder, da_decoder=da_decoder,
-                          utt_encoder=utt_encoder,
-                          criterion=criterion, config=config)
+        loss = model.evaluate(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor,
+                              da_encoder=da_encoder, da_decoder=da_decoder,
+                              utt_encoder=utt_encoder,
+                              criterion=criterion, config=config)
     total_loss += loss
     return total_loss
 
@@ -311,10 +310,10 @@ def evaluation(experiment):
     assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in test data'
 
     for i in range(0, len(X_seq)):
-        X_tensor = torch.tensor([[X_seq[i]]]).to(device)
+        X_tensor = torch.tensor([X_seq[i]]).to(device)
         Y_tensor = torch.tensor(Y_seq[i]).to(device)
         if config['use_utt']:
-            XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
+            XU_tensor = torch.tensor([XU_seq[i]]).to(device)
         else:
             XU_tensor = None
 
@@ -342,6 +341,6 @@ def calc_average(y_true, y_pred):
 
 
 if __name__ == '__main__':
-    # train(args.expr)
+    train(args.expr)
     true, pred, true_detok, pred_detok = evaluation(args.expr)
     calc_average(y_true=true, y_pred=pred)

@@ -9,6 +9,8 @@ from utils import *
 from nn_blocks import *
 import argparse
 import random
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--expr', '-e', default='baseline', help='input experiment config')
@@ -255,6 +257,79 @@ def validation(Y_valid, XU_valid, Vturn, model,
                                                   criterion=criterion, config=config)
             total_loss += loss
     return total_loss
+
+def evaluate(experiment):
+    print('load vocab')
+    config = initialize_env(experiment)
+    X_train, Y_train, X_valid, Y_valid, X_test, Y_test = create_DAdata(config)
+    da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
+    if config['use_utt']:
+        XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test = create_Uttdata(config)
+        utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
+
+    X_test, Y_test = da_vocab.tokenize(X_test, Y_test)
+
+    Y_test, _ = preprocess(Y_test)
+    XU_test, _ = utt_vocab.tokenize(XU_test, YU_test)
+    XU_test, turn = preprocess(XU_test)
+
+    print('load models')
+    decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
+                        da_hidden=config['DEC_HIDDEN']).to(device)
+    context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
+
+    # loading weight
+    decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_beststate.model')))
+    context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_beststate.model')))
+
+    utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
+    utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_beststate.model')))
+    utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_HIDDEN']).to(device)
+    utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_beststate.model')))
+
+    model = baseline().to(device)
+
+    utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
+
+    true = []
+    pred = []
+
+    for seq_idx in range(0, len(X_test)):
+        print('\r{}/{} conversation evaluating'.format(seq_idx+1, len(X_test)), end='')
+        X_seq = X_test[seq_idx]
+        Y_seq = Y_test[seq_idx]
+        if config['use_utt']:
+            XU_seq = XU_test[seq_idx]
+        assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in test data'
+
+        for i in range(0, len(X_seq)):
+            X_tensor = torch.tensor([[X_seq[i]]]).to(device)
+            Y_tensor = torch.tensor(Y_seq[i]).to(device)
+            if config['use_utt']:
+                XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
+            else:
+                XU_tensor = None
+
+            decoder_output, utt_context_hidden = model.predict(X_utt=XU_tensor, turn=turn,
+                                                               da_decoder=decoder,
+                                                               utt_encoder=utt_encoder, utt_context=utt_context,
+                                                               utt_context_hidden=utt_context_hidden, config=config)
+            pred_idx = torch.argmax(decoder_output)
+            true.append(Y_tensor.item())
+            pred.append(pred_idx.item())
+
+    print()
+    true_detok = [da_vocab.id2word[label] for label in true]
+    pred_detok = [da_vocab.id2word[label] for label in pred]
+
+    return true, pred, true_detok, pred_detok
+
+def calc_average(y_true, y_pred):
+    p = precision_score(y_true=y_true, y_pred=y_pred, average='macro')
+    r = recall_score(y_true=y_true, y_pred=y_pred, average='macro')
+    f = f1_score(y_true=y_true, y_pred=y_pred, average='macro')
+    acc = accuracy_score(y_true=y_true, y_pred=y_pred)
+    print('p: {} | r: {} | f: {} | acc: {}'.format(p, r, f, acc))
 
 if __name__ == '__main__':
     train(args.expr)

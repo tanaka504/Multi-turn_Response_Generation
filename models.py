@@ -106,6 +106,7 @@ class DAwocontext(nn.Module):
                 da_encoder, utt_encoder, da_decoder, criterion, config):
 
         da_encoder_hidden = da_encoder(X_da) # (batch_size, 1, DA_HIDDEN)
+        da_encoder_hidden = da_encoder_hidden.unsqueeze(1)
 
         if config['use_utt']:
             utt_encoder_hidden = utt_encoder.initHidden(step_size, device)
@@ -130,6 +131,7 @@ class DAwocontext(nn.Module):
                 da_encoder, utt_encoder, da_decoder, criterion, config):
 
         da_encoder_hidden = da_encoder(X_da)  # (batch_size, 1, DA_HIDDEN)
+        da_encoder_hidden = da_encoder_hidden.unsqueeze(1)
 
         if config['use_utt']:
             utt_encoder_hidden = utt_encoder.initHidden(1, device)
@@ -141,7 +143,7 @@ class DAwocontext(nn.Module):
 
         decoder_output = da_decoder(dec_hidden)  # (batch_size, 1, DA_VOCAB)
         decoder_output = decoder_output.squeeze(1)  # (batch_size, DA_VOCAB)
-        Y_da = Y_da.squeeze()
+        # Y_da = Y_da.squeeze()
 
         loss = criterion(decoder_output, Y_da)
 

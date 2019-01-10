@@ -129,7 +129,6 @@ if __name__ == '__main__':
 
     calc_average(true, pred)
     acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
-    print('accuracy: ', acc)
     save_cmx(true_detok, pred_detok, args.expr)
 
 
