@@ -300,7 +300,7 @@ def evaluate(experiment):
             XU_seq = XU_test[seq_idx]
 
         for i in range(0, len(Y_seq)):
-            turn_tensor = torch.tensor([[turn_seq]]).to(device)
+            turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
             Y_tensor = torch.tensor(Y_seq[i]).to(device)
             XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
 
