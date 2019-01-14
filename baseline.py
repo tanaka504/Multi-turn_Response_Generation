@@ -18,10 +18,13 @@ parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
 args = parser.parse_args()
 
 if torch.cuda.is_available():
-    torch.cuda.set_device(args.gpu)
-    device = 'cuda'
+    # torch.cuda.set_device(args.gpu)
+    # device = 'cuda'
+    device = torch.device('cuda:{}'.format(args.gpu))
 else:
-    device = 'cpu'
+    device = torch.device('cpu')
+
+print('Use device: ', device)
 
 def initialize_env(name):
     config = pyhocon.ConfigFactory.parse_file('experiments.conf')[name]
