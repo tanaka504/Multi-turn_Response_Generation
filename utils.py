@@ -147,6 +147,25 @@ def separate_data(posts, cmnts):
     assert len(X_train) == len(Y_train), 'Unexpect to separate train data'
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
 
+def preprocess(X, mode='X'):
+    result_x = []
+    result_turn = []
+    if mode == 'Y':
+        return [[x_seq for x_seq in x_conv if not x_seq == '<turn>'] for x_conv in X], None
+    for x_conv in X:
+        tmp_x = []
+        turn = []
+        for x_seq in x_conv:
+            if x_seq == '<turn>':
+                turn[-1] = 1
+            else:
+                turn.append(0)
+                tmp_x.append(x_seq)
+        assert len(tmp_x) == len(turn), '{} | {}'.format(len(tmp_x), len(turn))
+        result_x.append(tmp_x)
+        result_turn.append(turn)
+    return result_x, result_turn
+
 def makefig(X, Y, xlabel, ylabel, imgname):
     plt.figure(figsize=(12, 6))
     plt.bar(X, Y)

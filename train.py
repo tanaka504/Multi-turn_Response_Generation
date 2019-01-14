@@ -64,9 +64,15 @@ def train(experiment):
     # Tokenize sequences
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
     X_valid, Y_valid = da_vocab.tokenize(X_valid, Y_valid)
+    X_train, Tturn = preprocess(X_train, mode='X')
+    X_valid, Vturn = preprocess(X_valid, mode='X')
+    Y_train, _ = preprocess(Y_train, mode='Y')
+    Y_valid, _ = preprocess(Y_valid, mode='Y')
     if config['use_utt']:
         XU_train, YU_train = utt_vocab.tokenize(XU_train, YU_train)
         XU_valid, YU_valid = utt_vocab.tokenize(XU_valid, YU_valid)
+        XU_train, _ = preprocess(XU_train, mode='X')
+        XU_valid, _ = preprocess(XU_valid, mode='X')
     else:
         XU_train = []
         YU_train = []
@@ -140,6 +146,7 @@ def train(experiment):
             print('\rConversation {}/{} training...'.format(k + step_size, len(X_train)), end='')
             X_seq = [X_train[seq_idx] for seq_idx in batch_idx]
             Y_seq = [Y_train[seq_idx] for seq_idx in batch_idx]
+            turn_seq = [Tturn[seq_idx] for seq_idx in batch_idx]
             max_conv_len = max(len(s) + 1 for s in X_seq)  # seq_len は DA と UTT で共通
             if config['use_utt']:
                 XU_seq = [XU_train[seq_idx] for seq_idx in batch_idx]
@@ -156,12 +163,14 @@ def train(experiment):
             for ci in range(len(X_seq)):
                 X_seq[ci] = X_seq[ci] + [da_vocab.word2id['<PAD>']] * (max_conv_len - len(X_seq[ci]))
                 Y_seq[ci] = Y_seq[ci] + [da_vocab.word2id['<PAD>']] * (max_conv_len - len(Y_seq[ci]))
+                turn_seq[ci] = turn_seq[ci] + [0] * (max_conv_len - len(turn_seq[ci]))
 
             assert len(X_seq) == len(Y_seq), 'Unexpect sequence length'
 
             for i in range(0, max_conv_len):
                 X_tensor = torch.tensor([[X[i]] for X in X_seq]).to(device)
                 Y_tensor = torch.tensor([[Y[i]] for Y in Y_seq]).to(device)
+                turn_tensor = torch.tensor([[t[i]] for t in turn_seq]).to(device)
                 if config['use_utt']:
                     max_seq_len = max(len(XU[i]) + 1 for XU in XU_seq)
                     # utterance padding
@@ -181,6 +190,7 @@ def train(experiment):
     
                 if last:
                     loss, context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor,step_size=step_size, 
+                                                         turn=turn_tensor,
                                                          da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
                                                          da_context_hidden=context_hidden,
                                                          utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
@@ -198,6 +208,7 @@ def train(experiment):
 
                 else:
                     context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor, step_size=step_size, 
+                                                   turn=turn_tensor,
                                                    da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
                                                    da_context_hidden=context_hidden,
                                                    utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
@@ -205,7 +216,7 @@ def train(experiment):
                                                    criterion=criterion, last=last, config=config)
             k += step_size
         print()
-        valid_loss = validation(X_valid=X_valid, Y_valid=Y_valid, XU_valid=XU_valid, YU_valid=YU_valid,
+        valid_loss = validation(X_valid=X_valid, Y_valid=Y_valid, XU_valid=XU_valid, YU_valid=YU_valid, turn=Vturn,
                                 model=model, da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
                                 utt_encoder=utt_encoder, utt_context=utt_context, utt_decoder=utt_decoder, config=config)
 
@@ -245,7 +256,7 @@ def train(experiment):
     print()
     print('Finish training | exec time: %.4f [sec]' % (time.time() - start))
 
-def validation(X_valid, Y_valid, XU_valid, YU_valid, model,
+def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
                da_encoder, da_decoder, da_context,
                utt_encoder, utt_context, utt_decoder, config):
 
@@ -258,6 +269,7 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model,
     for seq_idx in range(len(X_valid)):
         X_seq = X_valid[seq_idx]
         Y_seq = Y_valid[seq_idx]
+        turn_seq = turn[seq_idx]
         if config['use_utt']:
             XU_seq = XU_valid[seq_idx]
             YU_seq = YU_valid[seq_idx]
@@ -267,6 +279,7 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model,
         for i in range(0, len(X_seq)):
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)
             Y_tensor = torch.tensor([[Y_seq[i]]]).to(device)
+            turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
             if config['use_utt']:
                 XU_tensor = torch.tensor([XU_seq[i]]).to(device)
                 YU_tensor = torch.tensor([YU_seq[i]]).to(device)
@@ -274,6 +287,7 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model,
                 XU_tensor, YU_tensor = None, None
 
             loss, context_hidden, utt_context_hidden = model.evaluate(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor,
+                                                  turn=turn_tensor,
                                                   da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
                                                   da_context_hidden=da_context_hidden,
                                                   utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,

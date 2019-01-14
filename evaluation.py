@@ -30,8 +30,11 @@ def evaluate(experiment):
         utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
 
     X_test, Y_test = da_vocab.tokenize(X_test, Y_test)
+    X_test, turn = preprocess(X_test)
+    Y_test, _ = preprocess(Y_test)
     if config['use_utt']:
         XU_test, _ = utt_vocab.tokenize(XU_test, YU_test)
+        XU_test, _ = preprocess(XU_test)
     else:
         XU_test = []
 
@@ -69,6 +72,7 @@ def evaluate(experiment):
         print('\r{}/{} conversation evaluating'.format(seq_idx+1, len(X_test)), end='')
         X_seq = X_test[seq_idx]
         Y_seq = Y_test[seq_idx]
+        turn_seq = turn[seq_idx]
         if config['use_utt']:
             XU_seq = XU_test[seq_idx]
         assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in test data'
@@ -76,12 +80,14 @@ def evaluate(experiment):
         for i in range(0, len(X_seq)):
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)
             Y_tensor = torch.tensor(Y_seq[i]).to(device)
+            turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
             if config['use_utt']:
                 XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
             else:
                 XU_tensor = None
 
             decoder_output, da_context_hidden, utt_context_hidden = model.predict(X_da=X_tensor, X_utt=XU_tensor,
+                                                           turn=turn_tensor,
                                                            da_encoder=encoder, da_decoder=decoder, da_context=context,
                                                            da_context_hidden=da_context_hidden,
                                                            utt_encoder=utt_encoder, utt_context=utt_context,
@@ -119,7 +125,7 @@ def save_cmx(y_true, y_pred, expr):
 
 
 if __name__ == '__main__':
-    true, pred, true_detok, pred_detok = evaluate(args.expr)
+    # true, pred, true_detok, pred_detok = evaluate(args.expr)
     # c = Counter(true_detok)
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='freq', imgname='label-freq.png')
@@ -127,16 +133,21 @@ if __name__ == '__main__':
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='pred freq', imgname='predlabel-freq.png')
 
-    calc_average(true, pred)
-    acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
-    save_cmx(true_detok, pred_detok, args.expr)
+    # calc_average(true, pred)
+    # acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
+    # save_cmx(true_detok, pred_detok, args.expr)
 
 
-    # config = initialize_env(args.expr)
-    # _, _, _, _, preDA, nextDA = create_DAdata(config=config)
-    # preDA = [label for conv in preDA for label in conv]
-    # nextDA = [label for conv in nextDA for label in conv]
-    # c = Counter(nextDA)
-    # pprint({k: v for k, v in c.items()})
+    config = initialize_env(args.expr)
+    preDA, nextDA, _, _ = create_traindata(config)
+    preDA, turn = preprocess(preDA, mode='X')
+    nextDA, _ = preprocess(nextDA, mode='Y')
+    assert len(preDA) == len(nextDA)
+    print('Conversations: ', len(preDA))
+    preDA = [label for conv in preDA for label in conv]
+    nextDA = [label for conv in nextDA for label in conv]
+    print('Sentences: ', len(preDA))
+    c = Counter(nextDA)
+    pprint({k: v for k, v in c.items()})
     # save_cmx(y_true=preDA, y_pred=nextDA, expr='bias')
 

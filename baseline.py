@@ -41,23 +41,6 @@ def create_Uttdata(config):
     X_train, Y_train, X_valid, Y_valid, X_test, Y_test = separate_data(posts, cmnts)
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
 
-def preprocess(X):
-    result_x = []
-    result_turn = []
-    for x_conv in X:
-        tmp_x = []
-        turn = []
-        for x_seq in x_conv:
-            if x_seq == '<turn>':
-                turn[-1] = 1
-            else:
-                turn.append(0)
-                tmp_x.append(x_seq)
-        assert len(tmp_x) == len(turn)
-        result_x.append(tmp_x)
-        result_turn.append(turn)
-    return result_x, result_turn
-
 
 def make_batchidx(X):
     length = {}
@@ -84,12 +67,12 @@ def train(experiment):
     # Tokenize sequences
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
     X_valid, Y_valid = da_vocab.tokenize(X_valid, Y_valid)
-    Y_train, _ = preprocess(Y_train)
-    Y_valid, _ = preprocess(Y_valid)
+    Y_train, _ = preprocess(Y_train, mode='Y')
+    Y_valid, _ = preprocess(Y_valid, mode='Y')
     XU_train, YU_train = utt_vocab.tokenize(XU_train, YU_train)
     XU_valid, YU_valid = utt_vocab.tokenize(XU_valid, YU_valid)
-    XU_train, Tturn = preprocess(XU_train)
-    XU_valid, Vturn = preprocess(XU_valid)
+    XU_train, Tturn = preprocess(XU_train, mode='X')
+    XU_valid, Vturn = preprocess(XU_valid, mode='X')
 
     print('Finish preparing dataset...')
 
@@ -269,9 +252,9 @@ def evaluate(experiment):
 
     _, Y_test = da_vocab.tokenize(X_test, Y_test)
 
-    Y_test, _ = preprocess(Y_test)
+    Y_test, _ = preprocess(Y_test, mode='Y')
     XU_test, _ = utt_vocab.tokenize(XU_test, YU_test)
-    XU_test, turn = preprocess(XU_test)
+    XU_test, turn = preprocess(XU_test, mode='X')
 
     print('load models')
     decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],

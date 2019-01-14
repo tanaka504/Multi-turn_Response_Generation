@@ -341,6 +341,6 @@ def calc_average(y_true, y_pred):
 
 
 if __name__ == '__main__':
-    train(args.expr)
+    # train(args.expr)
     true, pred, true_detok, pred_detok = evaluation(args.expr)
     calc_average(y_true=true, y_pred=pred)
