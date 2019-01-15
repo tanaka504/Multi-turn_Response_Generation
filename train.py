@@ -30,13 +30,13 @@ def initialize_env(name):
     return config
 
 def create_DAdata(config):
-    posts, cmnts, _, _ = create_traindata(config)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test = separate_data(posts, cmnts)
-    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
+    posts, cmnts, _, _, turn = create_traindata(config)
+    X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn = separate_data(posts, cmnts, turn)
+    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn
 
 def create_Uttdata(config):
-    _, _, posts, cmnts = create_traindata(config)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test = separate_data(posts, cmnts)
+    _, _, posts, cmnts, turn = create_traindata(config)
+    X_train, Y_train, X_valid, Y_valid, X_test, Y_test, _, _, _ = separate_data(posts, cmnts, turn)
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
 
 def make_batchidx(X):
@@ -51,7 +51,7 @@ def make_batchidx(X):
 def train(experiment):
     print('loading setting "{}"...'.format(experiment))
     config = initialize_env(experiment)
-    X_train, Y_train, X_valid, Y_valid, _, _ = create_DAdata(config)
+    X_train, Y_train, X_valid, Y_valid, _, _, Tturn, Vturn, _ = create_DAdata(config)
     print('Finish create train data...')
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
     if config['use_utt']:
@@ -62,17 +62,17 @@ def train(experiment):
     print('Finish create vocab dic...')
 
     # Tokenize sequences
+    # X_train, Tturn = preprocess(X_train, mode='X')
+    # X_valid, Vturn = preprocess(X_valid, mode='X')
+    # Y_train, _ = preprocess(Y_train, mode='Y')
+    # Y_valid, _ = preprocess(Y_valid, mode='Y')
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
     X_valid, Y_valid = da_vocab.tokenize(X_valid, Y_valid)
-    X_train, Tturn = preprocess(X_train, mode='X')
-    X_valid, Vturn = preprocess(X_valid, mode='X')
-    Y_train, _ = preprocess(Y_train, mode='Y')
-    Y_valid, _ = preprocess(Y_valid, mode='Y')
     if config['use_utt']:
+        # XU_train, _ = preprocess(XU_train, mode='X')
+        # XU_valid, _ = preprocess(XU_valid, mode='X')
         XU_train, YU_train = utt_vocab.tokenize(XU_train, YU_train)
         XU_valid, YU_valid = utt_vocab.tokenize(XU_valid, YU_valid)
-        XU_train, _ = preprocess(XU_train, mode='X')
-        XU_valid, _ = preprocess(XU_valid, mode='X')
     else:
         XU_train = []
         YU_train = []
@@ -274,7 +274,7 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
             XU_seq = XU_valid[seq_idx]
             YU_seq = YU_valid[seq_idx]
 
-        assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in evaluate'
+        assert len(X_seq) == len(Y_seq), 'Unexpect sequence len in evaluate {} != {}'.format(len(X_seq), len(Y_seq))
 
         for i in range(0, len(X_seq)):
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)

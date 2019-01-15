@@ -104,6 +104,7 @@ def create_traindata(config):
     da_cmnts = []
     utt_posts = []
     utt_cmnts = []
+    turn = []
     # 1file 1conversation
     for filename in files:
         with open(os.path.join(config['train_path'], filename), 'r') as f:
@@ -111,6 +112,7 @@ def create_traindata(config):
             data.remove('')
             da_seq = []
             utt_seq = []
+            turn_seq = []
             # 1line 1turn
             for line in data:
                 jsondata = json.loads(line)
@@ -119,33 +121,38 @@ def create_traindata(config):
                     for da, utt in zip(jsondata['DA'], jsondata['sentence']):
                         da_seq.append(da)
                         utt_seq.append(utt.split(' '))
-                    da_seq.append('<turn>')
-                    utt_seq.append('<turn>')
+                        turn_seq.append(0)
+                    # da_seq.append('<turn>')
+                    # utt_seq.append('<turn>')
+                    turn_seq[-1] = 1
                 # single-turn single dialogue case
                 else:
                     da_seq.append(jsondata['DA'][-1])
                     utt_seq.append(jsondata['sentence'][-1].split(' '))
             da_seq = [easy_damsl(da) for da in da_seq]
+            assert len(turn_seq) == len(da_seq), '{} != {}'.format(len(turn_seq), len(da_seq))
         da_posts.append(da_seq[:-1])
         da_cmnts.append(da_seq[1:])
         utt_posts.append(utt_seq[:-1])
         utt_cmnts.append(utt_seq[1:])
+        turn.append(turn_seq[:-1])
     assert len(da_posts) == len(da_cmnts), 'Unexpect length da_posts and da_cmnts'
     assert len(utt_posts) == len(utt_cmnts), 'Unexpect length utt_posts and utt_cmnts'
-    return da_posts, da_cmnts, utt_posts, utt_cmnts
+    assert len(turn) == len(da_posts)
+    return da_posts, da_cmnts, utt_posts, utt_cmnts, turn
 
 def easy_damsl(tag):
     easy_tag = [k for k, v in damsl_align.items() if tag in v]
     return easy_tag[0] if not len(easy_tag) < 1 else tag
 
-def separate_data(posts, cmnts):
+def separate_data(posts, cmnts, turn):
     split_size = round(len(posts) / 10)
     if split_size == 0: split_size = 1
-    X_train, Y_train = posts[split_size * 2:], cmnts[split_size * 2:]
-    X_valid, Y_valid = posts[split_size: split_size * 2], cmnts[split_size: split_size * 2]
-    X_test, Y_test = posts[:split_size], cmnts[:split_size]
+    X_train, Y_train, Tturn = posts[split_size * 2:], cmnts[split_size * 2:], turn[split_size * 2:]
+    X_valid, Y_valid, Vturn = posts[split_size: split_size * 2], cmnts[split_size: split_size * 2], turn[split_size: split_size * 2]
+    X_test, Y_test, Testturn = posts[:split_size], cmnts[:split_size], turn[:split_size]
     assert len(X_train) == len(Y_train), 'Unexpect to separate train data'
-    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
+    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn
 
 def preprocess(X, mode='X'):
     result_x = []

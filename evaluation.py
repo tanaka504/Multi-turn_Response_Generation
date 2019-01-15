@@ -23,18 +23,18 @@ args = parser.parse_args()
 def evaluate(experiment):
     print('load vocab')
     config = initialize_env(experiment)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test = create_DAdata(config)
+    X_train, Y_train, X_valid, Y_valid, X_test, Y_test, _, _, turn = create_DAdata(config)
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
     if config['use_utt']:
         XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test = create_Uttdata(config)
         utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
 
     X_test, Y_test = da_vocab.tokenize(X_test, Y_test)
-    X_test, turn = preprocess(X_test)
-    Y_test, _ = preprocess(Y_test)
+    # X_test, turn = preprocess(X_test)
+    # Y_test, _ = preprocess(Y_test)
     if config['use_utt']:
         XU_test, _ = utt_vocab.tokenize(XU_test, YU_test)
-        XU_test, _ = preprocess(XU_test)
+        # XU_test, _ = preprocess(XU_test)
     else:
         XU_test = []
 
@@ -125,7 +125,7 @@ def save_cmx(y_true, y_pred, expr):
 
 
 if __name__ == '__main__':
-    # true, pred, true_detok, pred_detok = evaluate(args.expr)
+    true, pred, true_detok, pred_detok = evaluate(args.expr)
     # c = Counter(true_detok)
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='freq', imgname='label-freq.png')
@@ -133,21 +133,21 @@ if __name__ == '__main__':
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='pred freq', imgname='predlabel-freq.png')
 
-    # calc_average(true, pred)
+    calc_average(true, pred)
     # acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
     # save_cmx(true_detok, pred_detok, args.expr)
 
 
-    config = initialize_env(args.expr)
-    preDA, nextDA, _, _ = create_traindata(config)
-    preDA, turn = preprocess(preDA, mode='X')
-    nextDA, _ = preprocess(nextDA, mode='Y')
-    assert len(preDA) == len(nextDA)
-    print('Conversations: ', len(preDA))
-    preDA = [label for conv in preDA for label in conv]
-    nextDA = [label for conv in nextDA for label in conv]
-    print('Sentences: ', len(preDA))
-    c = Counter(nextDA)
-    pprint({k: v for k, v in c.items()})
+    # config = initialize_env(args.expr)
+    # preDA, nextDA, _, _ = create_traindata(config)
+    # preDA, turn = preprocess(preDA, mode='X')
+    # nextDA, _ = preprocess(nextDA, mode='Y')
+    # assert len(preDA) == len(nextDA)
+    # print('Conversations: ', len(preDA))
+    # preDA = [label for conv in preDA for label in conv]
+    # nextDA = [label for conv in nextDA for label in conv]
+    # print('Sentences: ', len(preDA))
+    # c = Counter(nextDA)
+    # pprint({k: v for k, v in c.items()})
     # save_cmx(y_true=preDA, y_pred=nextDA, expr='bias')
 

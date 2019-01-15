@@ -10,6 +10,7 @@ from nn_blocks import *
 import argparse
 import random
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from train import initialize_env, create_DAdata, create_Uttdata, make_batchidx
 
 
 parser = argparse.ArgumentParser()
@@ -26,38 +27,10 @@ else:
 
 print('Use device: ', device)
 
-def initialize_env(name):
-    config = pyhocon.ConfigFactory.parse_file('experiments.conf')[name]
-    config['log_dir'] = os.path.join(config['log_root'], name)
-    if not os.path.exists(config['log_dir']):
-        os.makedirs(config['log_dir'])
-
-    return config
-
-def create_DAdata(config):
-    posts, cmnts, _, _ = create_traindata(config)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test = separate_data(posts, cmnts)
-    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
-
-def create_Uttdata(config):
-    _, _, posts, cmnts = create_traindata(config)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test = separate_data(posts, cmnts)
-    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
-
-
-def make_batchidx(X):
-    length = {}
-    for idx, conv in enumerate(X):
-        if len(conv) in length:
-            length[len(conv)].append(idx)
-        else:
-            length[len(conv)] = [idx]
-    return [v for k, v in sorted(length.items(), key=lambda x: x[0])]
-
 def train(experiment):
     print('loading setting "{}"...'.format(experiment))
     config = initialize_env(experiment)
-    X_train, Y_train, X_valid, Y_valid, _, _ = create_DAdata(config)
+    X_train, Y_train, X_valid, Y_valid, _, _, Tturn, Vturn, _ = create_DAdata(config)
     print('Finish create train data...')
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
     if config['use_utt']:
@@ -67,16 +40,15 @@ def train(experiment):
         utt_vocab = None
     print('Finish create vocab dic...')
 
+    # Y_train, _ = preprocess(Y_train, mode='Y')
+    # Y_valid, _ = preprocess(Y_valid, mode='Y')
     # Tokenize sequences
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
     X_valid, Y_valid = da_vocab.tokenize(X_valid, Y_valid)
-    Y_train, _ = preprocess(Y_train, mode='Y')
-    Y_valid, _ = preprocess(Y_valid, mode='Y')
+    # XU_train, Tturn = preprocess(XU_train, mode='X')
+    # XU_valid, Vturn = preprocess(XU_valid, mode='X')
     XU_train, YU_train = utt_vocab.tokenize(XU_train, YU_train)
     XU_valid, YU_valid = utt_vocab.tokenize(XU_valid, YU_valid)
-    XU_train, Tturn = preprocess(XU_train, mode='X')
-    XU_valid, Vturn = preprocess(XU_valid, mode='X')
-
     print('Finish preparing dataset...')
 
     assert len(X_train) == len(Y_train), 'Unexpect content in train data'
@@ -155,7 +127,7 @@ def train(experiment):
                     XU_seq[ci][i] = XU_seq[ci][i] + [utt_vocab.word2id['<UttPAD>']] * (max_seq_len - len(XU_seq[ci][i]))
                 XU_tensor = torch.tensor([XU[i] for XU in XU_seq]).to(device)
                 # YU_tensor = torch.tensor([YU[i] for YU in YU_seq]).to(device)
-                YU_tensor = None
+                # YU_tensor = None
 
 
                 # X_tensor = (batch_size, 1)
