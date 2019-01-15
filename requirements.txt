@@ -3,3 +3,5 @@ numpy
 pyhocon
 argparse
 matplotlib
+seaborn
+sklearn

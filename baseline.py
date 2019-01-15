@@ -219,17 +219,16 @@ def validation(Y_valid, XU_valid, Vturn, model,
 def evaluate(experiment):
     print('load vocab')
     config = initialize_env(experiment)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test = create_DAdata(config)
+    X_train, Y_train, X_valid, Y_valid, X_test, Y_test, _, _, turn = create_DAdata(config)
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
-    if config['use_utt']:
-        XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test = create_Uttdata(config)
-        utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
+    XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test, _, _, _ = create_Uttdata(config)
+    utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
 
     _, Y_test = da_vocab.tokenize(X_test, Y_test)
 
-    Y_test, _ = preprocess(Y_test, mode='Y')
+    # Y_test, _ = preprocess(Y_test, mode='Y')
     XU_test, _ = utt_vocab.tokenize(XU_test, YU_test)
-    XU_test, turn = preprocess(XU_test, mode='X')
+    # XU_test, turn = preprocess(XU_test, mode='X')
 
     print('load models')
     decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
