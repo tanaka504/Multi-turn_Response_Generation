@@ -221,7 +221,7 @@ def evaluate(experiment):
     config = initialize_env(experiment)
     X_train, Y_train, X_valid, Y_valid, X_test, Y_test, _, _, turn = create_DAdata(config)
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
-    XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test, _, _, _ = create_Uttdata(config)
+    XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test = create_Uttdata(config)
     utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
 
     _, Y_test = da_vocab.tokenize(X_test, Y_test)
@@ -284,4 +284,5 @@ def calc_average(y_true, y_pred):
 
 if __name__ == '__main__':
     train(args.expr)
-    evaluate(args.expr)
+    true, pred, true_detok, pred_detok = evaluate(args.expr)
+    calc_average(y_true=true, y_pred=pred)

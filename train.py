@@ -170,7 +170,10 @@ def train(experiment):
             for i in range(0, max_conv_len):
                 X_tensor = torch.tensor([[X[i]] for X in X_seq]).to(device)
                 Y_tensor = torch.tensor([[Y[i]] for Y in Y_seq]).to(device)
-                turn_tensor = torch.tensor([[t[i]] for t in turn_seq]).to(device)
+                if config['turn']:
+                    turn_tensor = torch.tensor([[t[i]] for t in turn_seq]).to(device)
+                else:
+                    turn_tensor = None
                 if config['use_utt']:
                     max_seq_len = max(len(XU[i]) + 1 for XU in XU_seq)
                     # utterance padding
@@ -180,13 +183,14 @@ def train(experiment):
                     XU_tensor = torch.tensor([XU[i] for XU in XU_seq]).to(device)
                     # YU_tensor = torch.tensor([YU[i] for YU in YU_seq]).to(device)
                     YU_tensor = None
+                    
 
                 else:
                     XU_tensor, YU_tensor = None, None
                 # X_tensor = (batch_size, 1)
                 # XU_tensor = (batch_size, 1, seq_len)
 
-                last = True if i == len(X_seq) - 1 else False
+                last = True if i == max_conv_len - 1 else False
     
                 if last:
                     loss, context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor,step_size=step_size, 
@@ -279,7 +283,10 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
         for i in range(0, len(X_seq)):
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)
             Y_tensor = torch.tensor([[Y_seq[i]]]).to(device)
-            turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
+            if config['turn']:
+                turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
+            else:
+                turn_tensor = None
             if config['use_utt']:
                 XU_tensor = torch.tensor([XU_seq[i]]).to(device)
                 YU_tensor = torch.tensor([YU_seq[i]]).to(device)

@@ -114,7 +114,7 @@ def create_traindata(config):
             utt_seq = []
             turn_seq = []
             # 1line 1turn
-            for line in data:
+            for idx, line in enumerate(data, 1):
                 jsondata = json.loads(line)
                 # single-turn multi dialogue case
                 if config['multi_dialogue']:
@@ -122,23 +122,32 @@ def create_traindata(config):
                         da_seq.append(da)
                         utt_seq.append(utt.split(' '))
                         turn_seq.append(0)
-                    # da_seq.append('<turn>')
-                    # utt_seq.append('<turn>')
+                    if not config['turn']:
+                        da_seq.append('<turn>')
+                        utt_seq.append('<turn>')
                     turn_seq[-1] = 1
                 # single-turn single dialogue case
                 else:
                     da_seq.append(jsondata['DA'][-1])
                     utt_seq.append(jsondata['sentence'][-1].split(' '))
             da_seq = [easy_damsl(da) for da in da_seq]
-            assert len(turn_seq) == len(da_seq), '{} != {}'.format(len(turn_seq), len(da_seq))
-        da_posts.append(da_seq[:-1])
-        da_cmnts.append(da_seq[1:])
-        utt_posts.append(utt_seq[:-1])
-        utt_cmnts.append(utt_seq[1:])
-        turn.append(turn_seq[:-1])
+            # assert len(turn_seq) == len(da_seq), '{} != {}'.format(len(turn_seq), len(da_seq))
+        if config['state']:
+            for i in range(max(1, len(da_seq) - 1 - config['window_size'])):
+                da_posts.append(da_seq[i:min(len(da_seq)-1, i + config['window_size'])])
+                da_cmnts.append(da_seq[1 + i:min(len(da_seq), 1 + i + config['window_size'])])
+                utt_posts.append(utt_seq[i:min(len(da_seq)-1, i + config['window_size'])])
+                utt_cmnts.append(utt_seq[1 + i:min(len(da_seq), 1 + i + config['window_size'])])
+                turn.append(turn_seq[i:min(len(da_seq), i + config['window_size'])])
+        else:
+            da_posts.append(da_seq[:-1])
+            da_cmnts.append(da_seq[1:])
+            utt_posts.append(utt_seq[:-1])
+            utt_cmnts.append(utt_seq[1:])
+            turn.append(turn_seq[:-1])
     assert len(da_posts) == len(da_cmnts), 'Unexpect length da_posts and da_cmnts'
     assert len(utt_posts) == len(utt_cmnts), 'Unexpect length utt_posts and utt_cmnts'
-    assert len(turn) == len(da_posts)
+    # assert len(turn) == len(da_posts)
     return da_posts, da_cmnts, utt_posts, utt_cmnts, turn
 
 def easy_damsl(tag):

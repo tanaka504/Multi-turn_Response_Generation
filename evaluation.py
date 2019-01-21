@@ -14,6 +14,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from collections import Counter
 from pprint import pprint
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--expr', default='DAonly')
@@ -80,7 +81,10 @@ def evaluate(experiment):
         for i in range(0, len(X_seq)):
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)
             Y_tensor = torch.tensor(Y_seq[i]).to(device)
-            turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
+            if config['turn']:
+                turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
+            else:
+                turn_tensor = None
             if config['use_utt']:
                 XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
             else:
@@ -126,20 +130,25 @@ def save_cmx(y_true, y_pred, expr):
 
 if __name__ == '__main__':
     true, pred, true_detok, pred_detok = evaluate(args.expr)
+    noturn_idx = [idx for idx, token in enumerate(true_detok) if not token == '<turn>']
     # c = Counter(true_detok)
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='freq', imgname='label-freq.png')
     # c = Counter(pred_detok)
     # makefig(X=[k for k in c.keys()], Y=[v/len(true_detok) for v in c.values()],
     #         xlabel='dialogue act', ylabel='pred freq', imgname='predlabel-freq.png')
+    # c = Counter(noturn_pred)
 
-    calc_average(true, pred)
-    # acc = accuracy_score(y_true=true_detok, y_pred=pred_detok)
+    noturn_true = [true[idx] for idx in noturn_idx]
+    noturn_pred = [pred_detok[idx] for idx in noturn_idx]
+
+    calc_average(y_true=noturn_true, y_pred=noturn_pred)
     # save_cmx(true_detok, pred_detok, args.expr)
 
 
-    # config = initialize_env(args.expr)
-    # preDA, nextDA, _, _ = create_traindata(config)
+    config = initialize_env(args.expr)
+    preDA, nextDA, _, _, _ = create_traindata(config)
+    # print(sum([len(conv) for conv in preDA])/ len(preDA))
     # preDA, turn = preprocess(preDA, mode='X')
     # nextDA, _ = preprocess(nextDA, mode='Y')
     # assert len(preDA) == len(nextDA)
