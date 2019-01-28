@@ -70,7 +70,7 @@ def train(experiment):
 
     utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
     utt_context_opt = optim.Adam(utt_context.parameters(), lr=lr)
-    model = baseline().to(device)
+    model = baseline(device).to(device)
     print('Success construct model...')
 
 
@@ -103,7 +103,7 @@ def train(experiment):
             print('\rConversation {}/{} training...'.format(k + step_size, len(X_train)), end='')
             Y_seq = [Y_train[seq_idx] for seq_idx in batch_idx]
             turn_seq = [Tturn[seq_idx] for seq_idx in batch_idx]
-            max_conv_len = max(len(s) + 1 for s in Y_seq)  # seq_len は DA と UTT で共通
+            max_conv_len = max(len(s) for s in Y_seq)  # seq_len は DA と UTT で共通
 
             XU_seq = [XU_train[seq_idx] for seq_idx in batch_idx]
 
@@ -120,7 +120,7 @@ def train(experiment):
 
             for i in range(0, max_conv_len):
                 Y_tensor = torch.tensor([[Y[i]] for Y in Y_seq]).to(device)
-                turn_tensor = torch.tensor([[t[i]] for t in turn_seq]).to(device)
+                turn_tensor = torch.tensor([[t[i]] for t in turn_seq]).float().to(device)
                 max_seq_len = max(len(XU[i]) + 1 for XU in XU_seq)
                 # utterance padding
                 for ci in range(len(XU_seq)):
@@ -129,11 +129,10 @@ def train(experiment):
                 # YU_tensor = torch.tensor([YU[i] for YU in YU_seq]).to(device)
                 # YU_tensor = None
 
-
                 # X_tensor = (batch_size, 1)
                 # XU_tensor = (batch_size, 1, seq_len)
 
-                last = True if i == len(Y_seq) - 1 else False
+                last = True if i == max_conv_len - 1 else False
     
                 if last:
                     loss, utt_context_hidden = model.forward(Y_da=Y_tensor, X_utt=XU_tensor,
@@ -195,6 +194,7 @@ def validation(Y_valid, XU_valid, Vturn, model,
 
     utt_context_hidden = utt_context.initHidden(1, device)
     criterion = nn.CrossEntropyLoss()
+
     total_loss = 0
     k = 0
 
@@ -205,7 +205,7 @@ def validation(Y_valid, XU_valid, Vturn, model,
 
         for i in range(0, len(Y_seq)):
             Y_tensor = torch.tensor([[Y_seq[i]]]).to(device)
-            turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
+            turn_tensor = torch.tensor([[turn_seq[i]]]).float().to(device)
             XU_tensor = torch.tensor([XU_seq[i]]).to(device)
 
             loss, utt_context_hidden = model.evaluate(Y_da=Y_tensor, X_utt=XU_tensor,
