@@ -120,7 +120,7 @@ def save_cmx(y_true, y_pred, expr):
 
     df_cmx = pd.DataFrame(cmx_data, index=labels, columns=labels)
 
-    plt.figure(figsize=(18, 15))
+    plt.figure(figsize=(40, 30))
     plt.rcParams['font.size'] = 18
     sns.heatmap(df_cmx, annot=False)
     plt.xlabel('pre')
@@ -140,14 +140,22 @@ if __name__ == '__main__':
     # c = Counter(noturn_pred)
 
     noturn_true = [true[idx] for idx in noturn_idx]
-    noturn_pred = [pred_detok[idx] for idx in noturn_idx]
+    noturn_pred = [pred[idx] for idx in noturn_idx]
+
+    print(set(noturn_true))
+    print(set(noturn_pred))
 
     calc_average(y_true=noturn_true, y_pred=noturn_pred)
-    # save_cmx(true_detok, pred_detok, args.expr)
+    save_cmx(true_detok, pred_detok, args.expr)
 
 
-    config = initialize_env(args.expr)
-    preDA, nextDA, _, _, _ = create_traindata(config)
+    # config = initialize_env('data_analysis')
+    # preDA, nextDA, _, _, _ = create_traindata(config)
+    #
+    # tmp = [('->'.join(conv[:-1]), conv[-1]) for conv in preDA]
+    # save_cmx(y_true=[pre for pre, next in tmp], y_pred=[next for pre, next in tmp], expr='DApattern')
+
+
     # print(sum([len(conv) for conv in preDA])/ len(preDA))
     # preDA, turn = preprocess(preDA, mode='X')
     # nextDA, _ = preprocess(nextDA, mode='Y')

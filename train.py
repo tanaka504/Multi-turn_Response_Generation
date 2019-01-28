@@ -147,7 +147,7 @@ def train(experiment):
             X_seq = [X_train[seq_idx] for seq_idx in batch_idx]
             Y_seq = [Y_train[seq_idx] for seq_idx in batch_idx]
             turn_seq = [Tturn[seq_idx] for seq_idx in batch_idx]
-            max_conv_len = max(len(s) + 1 for s in X_seq)  # seq_len は DA と UTT で共通
+            max_conv_len = max(len(s) for s in X_seq)  # seq_len は DA と UTT で共通
             if config['use_utt']:
                 XU_seq = [XU_train[seq_idx] for seq_idx in batch_idx]
                 YU_seq = [YU_train[seq_idx] for seq_idx in batch_idx]
@@ -166,6 +166,7 @@ def train(experiment):
                 turn_seq[ci] = turn_seq[ci] + [0] * (max_conv_len - len(turn_seq[ci]))
 
             assert len(X_seq) == len(Y_seq), 'Unexpect sequence length'
+
 
             for i in range(0, max_conv_len):
                 X_tensor = torch.tensor([[X[i]] for X in X_seq]).to(device)
@@ -225,6 +226,13 @@ def train(experiment):
                                 utt_encoder=utt_encoder, utt_context=utt_context, utt_decoder=utt_decoder, config=config)
 
         if _valid_loss is None:
+            torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
+            torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_beststate.model'))
+            torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_beststate.model'))
+            if config['use_utt']:
+                torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_beststate.model'))
+            if config['use_uttcontext']:
+                torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_beststate.model'))
             _valid_loss = valid_loss
         else:
             if _valid_loss > valid_loss:
