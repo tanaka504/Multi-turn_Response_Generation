@@ -92,12 +92,16 @@ def train(experiment):
     print_total_loss = 0
     plot_total_loss = 0
 
-    da_encoder = DAEncoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'], da_hidden=config['DA_HIDDEN']).to(device)
+    da_encoder = None
+    da_context = None
+    if config['use_da']:
+        da_encoder = DAEncoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'], da_hidden=config['DA_HIDDEN']).to(device)
+        da_context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
+        da_encoder_opt = optim.Adam(da_encoder.parameters(), lr=lr)
+        da_context_opt = optim.Adam(da_context.parameters(), lr=lr)
+
     da_decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'], da_hidden=config['DEC_HIDDEN']).to(device)
-    da_context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
-    da_encoder_opt = optim.Adam(da_encoder.parameters(), lr=lr)
     da_decoder_opt = optim.Adam(da_decoder.parameters(), lr=lr)
-    da_context_opt = optim.Adam(da_context.parameters(), lr=lr)
 
     utt_encoder = None
     utt_context = None
@@ -108,6 +112,7 @@ def train(experiment):
     if config['use_uttcontext']:
         utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
         utt_context_opt = optim.Adam(utt_context.parameters(), lr=lr)
+
     model = DApredictModel(device).to(device)
     print('Success construct model...')
 
@@ -130,10 +135,12 @@ def train(experiment):
         while k < len(indexes):
             # initialize
             step_size = min(batch_size, len(indexes) - k)
-            context_hidden = da_context.initHidden(step_size, device)
+
+            context_hidden = da_context.initHidden(step_size, device) if config['use_da'] else None
             utt_context_hidden = utt_context.initHidden(step_size, device) if config['use_uttcontext'] else None
-            da_context_opt.zero_grad()
-            da_encoder_opt.zero_grad()
+            if config['use_da']:
+                da_context_opt.zero_grad()
+                da_encoder_opt.zero_grad()
             da_decoder_opt.zero_grad()
             if config['use_utt']:
                 utt_encoder_opt.zero_grad()
@@ -203,9 +210,13 @@ def train(experiment):
                                                          criterion=criterion, last=last, config=config)
                     print_total_loss += loss
                     plot_total_loss += loss
-                    da_encoder_opt.step()
+
+                    if config['use_da']:
+                        da_encoder_opt.step()
+                        da_context_opt.step()
+
                     da_decoder_opt.step()
-                    da_context_opt.step()
+
                     if config['use_utt']:
                         utt_encoder_opt.step()
                     if config['use_uttcontext']:
@@ -226,9 +237,10 @@ def train(experiment):
                                 utt_encoder=utt_encoder, utt_context=utt_context, utt_decoder=utt_decoder, config=config)
 
         if _valid_loss is None:
-            torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
+            if config['use_da']:
+                torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
+                torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_beststate.model'))
             torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_beststate.model'))
-            torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_beststate.model'))
             if config['use_utt']:
                 torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_beststate.model'))
             if config['use_uttcontext']:
@@ -236,9 +248,10 @@ def train(experiment):
             _valid_loss = valid_loss
         else:
             if _valid_loss > valid_loss:
-                torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
+                if config['use_da']:
+                    torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
+                    torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_beststate.model'))
                 torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_beststate.model'))
-                torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_beststate.model'))
                 if config['use_utt']:
                     torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_beststate.model'))
                 if config['use_uttcontext']:
@@ -256,9 +269,10 @@ def train(experiment):
 
         if (e + 1) % config['SAVE_MODEL'] == 0:
             print('saving model')
-            torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_state{}.model'.format(e + 1)))
+            if config['use_da']:
+                torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_state{}.model'.format(e + 1)))
+                torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_state{}.model'.format(e + 1)))
             torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_state{}.model'.format(e + 1)))
-            torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_state{}.model'.format(e + 1)))
             if config['use_utt']:
                 torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_state{}.model'.format(e + 1)))
             if config['use_uttcontext']:
@@ -272,7 +286,7 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
                da_encoder, da_decoder, da_context,
                utt_encoder, utt_context, utt_decoder, config):
 
-    da_context_hidden = da_context.initHidden(1, device)
+    da_context_hidden = da_context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
     criterion = nn.CrossEntropyLoss()
     total_loss = 0

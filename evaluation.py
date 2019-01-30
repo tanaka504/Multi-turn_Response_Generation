@@ -40,16 +40,18 @@ def evaluate(experiment):
         XU_test = []
 
     print('load models')
-    encoder = DAEncoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
+    encoder, context = None, None
+    if config['use_da']:
+        encoder = DAEncoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
                         da_hidden=config['DA_HIDDEN']).to(device)
+        context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
+        encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_beststate.model')))
+        context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_beststate.model')))
+
     decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
                         da_hidden=config['DEC_HIDDEN']).to(device)
-    context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
 
-    # loading weight
-    encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_beststate.model')))
     decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_beststate.model')))
-    context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_beststate.model')))
 
     utt_encoder = None
     utt_context = None
@@ -58,12 +60,12 @@ def evaluate(experiment):
         utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
         utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_beststate.model')))
     if config['use_uttcontext']:
-        utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_HIDDEN']).to(device)
+        utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
         utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_beststate.model')))
 
-    model = DApredictModel().to(device)
+    model = DApredictModel(device).to(device)
 
-    da_context_hidden = context.initHidden(1, device)
+    da_context_hidden = context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
 
     true = []
@@ -122,7 +124,7 @@ def save_cmx(y_true, y_pred, expr):
 
     plt.figure(figsize=(40, 30))
     plt.rcParams['font.size'] = 18
-    sns.heatmap(df_cmx, annot=False)
+    sns.heatmap(df_cmx, annot=True)
     plt.xlabel('pre')
     plt.ylabel('next')
     plt.savefig('./data/images/cmx_{}.png'.format(expr))

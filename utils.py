@@ -30,7 +30,7 @@ class da_Vocab:
         self.construct()
 
     def construct(self):
-        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<PAD>': 3}
+        vocab = {'<UNK>': 0, '<PAD>': 1}
         vocab_count = {}
 
         for post, cmnt in zip(self.posts, self.cmnts):

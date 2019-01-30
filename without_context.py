@@ -61,7 +61,7 @@ def flatten(X):
 def train(experiment):
     print('loading setting "{}"...'.format(experiment))
     config = initialize_env(experiment)
-    X_train, Y_train, X_valid, Y_valid, _, _ = create_DAdata(config)
+    X_train, Y_train, X_valid, Y_valid, _, _, Tturn, Vturn,  = create_DAdata(config)
     print('Finish create train data...')
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
     if config['use_utt']:
