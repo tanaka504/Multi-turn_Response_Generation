@@ -12,7 +12,6 @@ damsl_align = {'<Uninterpretable>': ['%', 'x'],
                '<Question>': ['q', 'qy', 'qw', 'qy^d', 'bh', 'qo', 'qh', 'br', 'qrr', '^g', 'qw^d'],
                '<Directive>': ['ad'],
                '<Propose>': ['p'],
-               '<Future>': [],
                '<Greeting>': ['fp', 'fc'],
                '<Apology>': ['fa', 'nn', 'ar', 'ng', 'nn^e', 'arp', 'nd', 'arp_nd'],
                '<Agreement>': ['aa', 'aap', 'am', 'aap_am', 'ft'],
@@ -30,7 +29,7 @@ class da_Vocab:
         self.construct()
 
     def construct(self):
-        vocab = {'<UNK>': 0, '<PAD>': 1}
+        vocab = {'<PAD>': 0}
         vocab_count = {}
 
         for post, cmnt in zip(self.posts, self.cmnts):
@@ -54,8 +53,8 @@ class da_Vocab:
         return vocab
 
     def tokenize(self, X_tensor, Y_tensor):
-        X_tensor = [[self.word2id[token] if token in self.word2id else self.word2id['<UNK>'] for token in sentence] for sentence in X_tensor]
-        Y_tensor = [[self.word2id[token] if token in self.word2id else self.word2id['<UNK>'] for token in sentence] for sentence in Y_tensor]
+        X_tensor = [[self.word2id[token] for token in sentence] for sentence in X_tensor]
+        Y_tensor = [[self.word2id[token] for token in sentence] for sentence in Y_tensor]
         return X_tensor, Y_tensor
 
 class utt_Vocab:

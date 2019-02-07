@@ -16,10 +16,11 @@ parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
 args = parser.parse_args()
 
 if torch.cuda.is_available():
-    torch.cuda.set_device(args.gpu)
-    device = 'cuda'
+    device = torch.device('cuda:{}'.format(args.gpu))
 else:
     device = 'cpu'
+
+print('Use device: ', device)
 
 def initialize_env(name):
     config = pyhocon.ConfigFactory.parse_file('experiments.conf')[name]
@@ -54,7 +55,7 @@ def train(experiment):
     X_train, Y_train, X_valid, Y_valid, _, _, Tturn, Vturn, _ = create_DAdata(config)
     print('Finish create train data...')
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
-    if config['use_utt']:
+    if config['use_utt'] or config['use_uttcontext']:
         XU_train, YU_train, XU_valid, YU_valid, _, _ = create_Uttdata(config)
         utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
     else:
@@ -68,7 +69,7 @@ def train(experiment):
     # Y_valid, _ = preprocess(Y_valid, mode='Y')
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
     X_valid, Y_valid = da_vocab.tokenize(X_valid, Y_valid)
-    if config['use_utt']:
+    if config['use_utt'] or config['use_uttcontext']:
         # XU_train, _ = preprocess(XU_train, mode='X')
         # XU_valid, _ = preprocess(XU_valid, mode='X')
         XU_train, YU_train = utt_vocab.tokenize(XU_train, YU_train)
@@ -106,7 +107,7 @@ def train(experiment):
     utt_encoder = None
     utt_context = None
     utt_decoder = None
-    if config['use_utt']:
+    if config['use_utt'] or config['use_uttcontext']:
         utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
         utt_encoder_opt = optim.Adam(utt_encoder.parameters(), lr=lr)
     if config['use_uttcontext']:
@@ -142,7 +143,7 @@ def train(experiment):
                 da_context_opt.zero_grad()
                 da_encoder_opt.zero_grad()
             da_decoder_opt.zero_grad()
-            if config['use_utt']:
+            if config['use_utt'] or config['use_uttcontext']:
                 utt_encoder_opt.zero_grad()
             if config['use_uttcontext']:
                 utt_context_opt.zero_grad()
@@ -155,7 +156,7 @@ def train(experiment):
             Y_seq = [Y_train[seq_idx] for seq_idx in batch_idx]
             turn_seq = [Tturn[seq_idx] for seq_idx in batch_idx]
             max_conv_len = max(len(s) for s in X_seq)  # seq_len は DA と UTT で共通
-            if config['use_utt']:
+            if config['use_utt'] or config['use_uttcontext']:
                 XU_seq = [XU_train[seq_idx] for seq_idx in batch_idx]
                 YU_seq = [YU_train[seq_idx] for seq_idx in batch_idx]
 
@@ -182,7 +183,7 @@ def train(experiment):
                     turn_tensor = torch.tensor([[t[i]] for t in turn_seq]).to(device)
                 else:
                     turn_tensor = None
-                if config['use_utt']:
+                if config['use_utt'] or config['use_uttcontext']:
                     max_seq_len = max(len(XU[i]) + 1 for XU in XU_seq)
                     # utterance padding
                     for ci in range(len(XU_seq)):
@@ -217,7 +218,7 @@ def train(experiment):
 
                     da_decoder_opt.step()
 
-                    if config['use_utt']:
+                    if config['use_utt'] or config['use_uttcontext']:
                         utt_encoder_opt.step()
                     if config['use_uttcontext']:
                         utt_context_opt.step()
@@ -241,7 +242,7 @@ def train(experiment):
                 torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
                 torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_beststate.model'))
             torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_beststate.model'))
-            if config['use_utt']:
+            if config['use_utt'] or config['use_uttcontext']:
                 torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_beststate.model'))
             if config['use_uttcontext']:
                 torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_beststate.model'))
@@ -252,7 +253,7 @@ def train(experiment):
                     torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
                     torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_beststate.model'))
                 torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_beststate.model'))
-                if config['use_utt']:
+                if config['use_utt'] or config['use_uttcontext']:
                     torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_beststate.model'))
                 if config['use_uttcontext']:
                     torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_beststate.model'))
@@ -273,7 +274,7 @@ def train(experiment):
                 torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_state{}.model'.format(e + 1)))
                 torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_state{}.model'.format(e + 1)))
             torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_state{}.model'.format(e + 1)))
-            if config['use_utt']:
+            if config['use_utt'] or config['use_uttcontext']:
                 torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_state{}.model'.format(e + 1)))
             if config['use_uttcontext']:
                 torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_state{}.model'.format(e + 1)))
@@ -296,7 +297,7 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
         X_seq = X_valid[seq_idx]
         Y_seq = Y_valid[seq_idx]
         turn_seq = turn[seq_idx]
-        if config['use_utt']:
+        if config['use_utt'] or config['use_uttcontext']:
             XU_seq = XU_valid[seq_idx]
             YU_seq = YU_valid[seq_idx]
 
@@ -309,7 +310,7 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
                 turn_tensor = torch.tensor([[turn_seq[i]]]).to(device)
             else:
                 turn_tensor = None
-            if config['use_utt']:
+            if config['use_utt'] or config['use_uttcontext']:
                 XU_tensor = torch.tensor([XU_seq[i]]).to(device)
                 YU_tensor = torch.tensor([YU_seq[i]]).to(device)
             else:
