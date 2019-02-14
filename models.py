@@ -192,6 +192,17 @@ class EncoderDecoderModel(nn.Module):
             turn = turn.float()
             turn = turn.unsqueeze(1)
 
+        # utterance encoder
 
-   
+        # utterance context encoder
+
+        # da decoder
+
+        # utterance decoder
+
+        if last:
+            loss.backward()
+            return loss.item(), da_context_hidden, utt_context_hidden
+        else:
+            return da_context_hidden, utt_context_hidden
 
