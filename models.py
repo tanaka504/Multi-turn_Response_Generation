@@ -303,7 +303,7 @@ class EncoderDecoderModel(nn.Module):
                 prev_words = Y_utt[:, j].unsqueeze(1)
                 preds, utt_decoder_hidden = utt_decoder(prev_words, utt_decoder_hidden)
                 _, topi = preds.topk(1)
-                loss += criterion(preds.view(-1, self.config['UTT_MAX_VOCAB']), Y_utt[:, j + 1])
+                loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y_utt[:, j + 1])
 
 
             # loss = loss + da_loss
