@@ -119,7 +119,7 @@ def create_traindata(config):
                 if config['multi_dialogue']:
                     for da, utt in zip(jsondata['DA'], jsondata['sentence']):
                         da_seq.append(da)
-                        utt_seq.append(utt.split(' '))
+                        utt_seq.append(utt.split(' ') + [EOS_token])
                         turn_seq.append(0)
                     if not config['turn']:
                         da_seq.append('<turn>')
