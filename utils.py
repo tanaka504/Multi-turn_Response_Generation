@@ -1,6 +1,7 @@
 import os, re, json
 import matplotlib.pyplot as plt
 import torch
+from nltk import tokenize
 
 EOS_token = '<EOS>'
 BOS_token = '<BOS>'
@@ -118,8 +119,10 @@ def create_traindata(config):
                 # single-turn multi dialogue case
                 if config['multi_dialogue']:
                     for da, utt in zip(jsondata['DA'], jsondata['sentence']):
+                        utt = en_preprocess(utt) + [EOS_token]
+                        assert len(utt) > 1, utt
                         da_seq.append(da)
-                        utt_seq.append(utt.split(' ') + [EOS_token])
+                        utt_seq.append(utt)
                         turn_seq.append(0)
                     if not config['turn']:
                         da_seq.append('<turn>')
@@ -130,7 +133,7 @@ def create_traindata(config):
                     da_seq.append(jsondata['DA'][-1])
                     utt_seq.append(jsondata['sentence'][-1].split(' '))
             da_seq = [easy_damsl(da) for da in da_seq]
-            # assert len(turn_seq) == len(da_seq), '{} != {}'.format(len(turn_seq), len(da_seq))
+            
         if config['state']:
             for i in range(max(1, len(da_seq) - 1 - config['window_size'])):
                 da_posts.append(da_seq[i:min(len(da_seq)-1, i + config['window_size'])])
@@ -146,7 +149,6 @@ def create_traindata(config):
             turn.append(turn_seq[:-1])
     assert len(da_posts) == len(da_cmnts), 'Unexpect length da_posts and da_cmnts'
     assert len(utt_posts) == len(utt_cmnts), 'Unexpect length utt_posts and utt_cmnts'
-    # assert len(turn) == len(da_posts)
     return da_posts, da_cmnts, utt_posts, utt_cmnts, turn
 
 def easy_damsl(tag):
@@ -162,24 +164,10 @@ def separate_data(posts, cmnts, turn):
     assert len(X_train) == len(Y_train), 'Unexpect to separate train data'
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn
 
-def preprocess(X, mode='X'):
-    result_x = []
-    result_turn = []
-    if mode == 'Y':
-        return [[x_seq for x_seq in x_conv if not x_seq == '<turn>'] for x_conv in X], None
-    for x_conv in X:
-        tmp_x = []
-        turn = []
-        for x_seq in x_conv:
-            if x_seq == '<turn>':
-                turn[-1] = 1
-            else:
-                turn.append(0)
-                tmp_x.append(x_seq)
-        assert len(tmp_x) == len(turn), '{} | {}'.format(len(tmp_x), len(turn))
-        result_x.append(tmp_x)
-        result_turn.append(turn)
-    return result_x, result_turn
+def en_preprocess(utterance):
+    utterance = re.sub(r'\-\-', '', utterance)
+    if utterance == '': utterance = 'hmm .'
+    return tokenize.word_tokenize(utterance.lower())
 
 def makefig(X, Y, xlabel, ylabel, imgname):
     plt.figure(figsize=(12, 6))

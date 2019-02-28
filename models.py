@@ -381,13 +381,27 @@ class EncoderDecoderModel(nn.Module):
             prev_words = torch.tensor([[BOS_token]]).to(self.device)
             pred_seq = []
 
-            for _ in range(config['max_len']):
-                preds, utt_decoder_hidden = utt_decoder(prev_words, utt_decoder_hidden)
-                _, topi = preds.topk(1)
-                pred_seq.append(topi.item())
-                prev_words = torch.tensor([[topi]]).to(self.device)
-                if topi == EOS_token:
-                    break
+            if config['beam_size']:
+                pred_seq, utt_decoder_hidden = self._beam_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config)
+            else:
+                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config)
 
         return pred_seq, da_context_hidden, utt_context_hidden
+
+    def _greedy_decode(self, prev_words, decoder, decoder_hidden, EOS_token, config):
+        pred_seq = []
+        for _ in range(config['max_len']):
+            preds, decoder_hidden = decoder(prev_words, decoder_hidden)
+            _, topi = preds.topk(1)
+            pred_seq.append(topi.item())
+            prev_words = torch.tensor([[topi]]).to(self.device)
+            if topi == EOS_token:
+                break
+        return pred_seq, decoder_hidden
+
+    def _beam_decode(self, prev_words, decoder, decoder_hidden, EOS_token, config):
+        pred_seq = []
+
+        return pred_seq, decoder_hidden
+
 

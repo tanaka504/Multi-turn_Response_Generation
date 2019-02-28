@@ -61,17 +61,17 @@ def interpreter(experiment):
 
     while 1:
 
-        utterance = input('>> ')
+        utterance = input('>> ').lower()
 
         if utterance == 'exit' or utterance == 'bye':
             print('see you again.')
             break
 
-        XU_seq = utterance.split(' ')
+        XU_seq = en_preprocess(utterance)
         XU_seq = [utt_vocab.word2id[word] if word in utt_vocab.word2id.keys() else utt_vocab.word2id['<UNK>'] for word in XU_seq]
 
         # TODO: How to deal utterance's DA
-        DA = da_vocab.word2id['<Agreement>']
+        DA = da_vocab.word2id['<Statement>']
         X_tensor = torch.tensor([[DA]]).to(device)
         if config['turn']:
             turn_tensor = torch.tensor([[1]]).to(device)
@@ -89,7 +89,7 @@ def interpreter(experiment):
                                                                       utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                                       utt_context_hidden=utt_context_hidden,
                                                                       config=config, EOS_token=utt_vocab.word2id['<EOS>'], BOS_token=utt_vocab.word2id['<BOS>'])
-        print(pred_seq)
+        print()
         print(' '.join([utt_vocab.id2word[wid] for wid in pred_seq]))
 
         print()
