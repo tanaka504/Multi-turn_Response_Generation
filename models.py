@@ -181,9 +181,8 @@ class EncoderDecoderModel(nn.Module):
     def forward(self, X_da, Y_da, X_utt, Y_utt, step_size, turn, 
                 da_encoder, da_context, da_decoder, da_context_hidden, 
                 utt_encoder, utt_context, utt_decoder, utt_context_hidden, 
-                criterion, last, config):
+                criterion, last, loss, config):
         
-        loss = 0
         if config['use_da']:
             da_encoder_hidden = da_encoder(X_da)
             da_context_output, da_context_hidden = da_context(da_encoder_hidden, da_context_hidden)
@@ -248,7 +247,7 @@ class EncoderDecoderModel(nn.Module):
             loss.backward()
             return loss.item(), da_context_hidden, utt_context_hidden
         else:
-            return da_context_hidden, utt_context_hidden
+            return loss, da_context_hidden, utt_context_hidden
 
 
     def evaluate(self, X_da, Y_da, X_utt, Y_utt, turn,
@@ -256,7 +255,6 @@ class EncoderDecoderModel(nn.Module):
                  utt_encoder, utt_decoder, utt_context, utt_context_hidden,
                  criterion, config):
         with torch.no_grad():
-            loss = 0
             if config['use_da']:
                 da_encoder_hidden = da_encoder(X_da)
                 da_context_output, da_context_hidden = da_context(da_encoder_hidden, da_context_hidden)

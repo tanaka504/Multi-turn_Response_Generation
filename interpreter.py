@@ -16,6 +16,7 @@ import pickle
 parser = argparse.ArgumentParser()
 parser.add_argument('--expr', default='DAonly')
 parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
+parser.add_argument('--epoch', type=int, default=10)
 args = parser.parse_args()
 
 def interpreter(experiment):
@@ -32,13 +33,13 @@ def interpreter(experiment):
         encoder = DAEncoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
                         da_hidden=config['DA_HIDDEN']).to(device)
         context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
-        encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_beststate.model')))
-        context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_beststate.model')))
+        encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_state{}.model'.format(args.epoch))))
+        context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'context_state{}.model'.format(args.epoch))))
 
     decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
                         da_hidden=config['DEC_HIDDEN']).to(device)
 
-    decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_beststate.model')))
+    decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_state{}.model'.format(args.epoch))))
 
     utt_encoder = None
     utt_context = None
@@ -46,11 +47,11 @@ def interpreter(experiment):
     if config['use_utt'] or config['use_uttcontext']:
         utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
         utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
-        utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_beststate.model')))
-        utt_decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_dec_beststate.model')))
+        utt_encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_enc_state{}.model'.format(args.epoch))))
+        utt_decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_dec_state{}.model'.format(args.epoch))))
     if config['use_uttcontext']:
         utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
-        utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_beststate.model')))
+        utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_state{}.model'.format(args.epoch))))
 
     model = EncoderDecoderModel(device).to(device)
 

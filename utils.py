@@ -119,8 +119,7 @@ def create_traindata(config):
                 # single-turn multi dialogue case
                 if config['multi_dialogue']:
                     for da, utt in zip(jsondata['DA'], jsondata['sentence']):
-                        utt = en_preprocess(utt) + [EOS_token]
-                        assert len(utt) > 1, utt
+                        utt = [BOS_token] + en_preprocess(utt) + [EOS_token]
                         da_seq.append(da)
                         utt_seq.append(utt)
                         turn_seq.append(0)
