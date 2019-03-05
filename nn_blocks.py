@@ -70,7 +70,7 @@ class UtteranceEncoder(nn.Module):
         # unsorting
         output = output[unsort_idx]
         hidden = hidden[:, unsort_idx]
-        hidden = hidden.transpose(0,1)
+        # hidden = hidden.transpose(0,1)
 
         return hidden, output
 

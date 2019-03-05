@@ -412,7 +412,7 @@ class seq2seq(nn.Module):
         loss = 0
 
         encoder_hidden = encoder.initHidden(step_size, self.device)
-        encoder_output, encoder_hidden = encoder(X, encoder_hidden)
+        encoder_hidden, _ = encoder(X, encoder_hidden)
 
         decoder_hidden = encoder_hidden
         for j in range(len(Y[0]) - 1):
@@ -425,12 +425,12 @@ class seq2seq(nn.Module):
 
         return loss.item()
 
-    def evaluate(self, X, Y, encoder, decoder, step_size, criterion, config):
+    def evaluate(self, X, Y, encoder, decoder, criterion, config):
         with torch.no_grad():
             loss = 0
 
-            encoder_hidden = encoder.initHidden(step_size, self.device)
-            encoder_output, encoder_hidden = encoder(X, encoder_hidden)
+            encoder_hidden = encoder.initHidden(1, self.device)
+            encoder_hidden, _ = encoder(X, encoder_hidden)
 
             decoder_hidden = encoder_hidden
             for j in range(len(Y[0]) - 1):
