@@ -255,6 +255,7 @@ class EncoderDecoderModel(nn.Module):
                  utt_encoder, utt_decoder, utt_context, utt_context_hidden,
                  criterion, config):
         with torch.no_grad():
+            loss = 0
             if config['use_da']:
                 da_encoder_hidden = da_encoder(X_da)
                 da_context_output, da_context_hidden = da_context(da_encoder_hidden, da_context_hidden)
@@ -402,4 +403,40 @@ class EncoderDecoderModel(nn.Module):
 
         return pred_seq, decoder_hidden
 
+class seq2seq(nn.Module):
+    def __init__(self, device):
+        super(seq2seq, self).__init__()
+        self.device = device
 
+    def forward(self, X, Y, encoder, decoder, step_size, criterion, config):
+        loss = 0
+
+        encoder_hidden = encoder.initHidden(step_size, self.device)
+        encoder_output, encoder_hidden = encoder(X, encoder_hidden)
+
+        decoder_hidden = encoder_hidden
+        for j in range(len(Y[0]) - 1):
+            prev_words = Y[:, j].unsqueeze(1)
+            preds, decoder_hidden = decoder(prev_words, decoder_hidden)
+            _, topi = preds.topk(1)
+            loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y[:, j + 1])
+
+        loss.backward()
+
+        return loss.item()
+
+    def evaluate(self, X, Y, encoder, decoder, step_size, criterion, config):
+        with torch.no_grad():
+            loss = 0
+
+            encoder_hidden = encoder.initHidden(step_size, self.device)
+            encoder_output, encoder_hidden = encoder(X, encoder_hidden)
+
+            decoder_hidden = encoder_hidden
+            for j in range(len(Y[0]) - 1):
+                prev_words = Y[:, j].unsqueeze(1)
+                preds, decoder_hidden = decoder(prev_words, decoder_hidden)
+                _, topi = preds.topk(1)
+                loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y[:, j + 1])
+
+            return loss.item()
