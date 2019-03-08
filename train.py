@@ -1,6 +1,7 @@
 import time
 import os
 import pyhocon
+import pickle
 import torch
 from torch import nn
 from torch import optim
@@ -10,17 +11,24 @@ from nn_blocks import *
 import argparse
 import random
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--expr', '-e', default='DAonly', help='input experiment config')
-parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
-args = parser.parse_args()
 
-if torch.cuda.is_available():
-    device = torch.device('cuda:{}'.format(args.gpu))
-else:
-    device = 'cpu'
 
-print('Use device: ', device)
+def parse():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--expr', '-e', default='DAonly', help='input experiment config')
+    parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
+    parser.add_argument('--epoch', type=int, default=10)
+    args = parser.parse_args()
+    
+    if torch.cuda.is_available():
+        device = torch.device('cuda:{}'.format(args.gpu))
+    else:
+        device = 'cpu'
+
+    print('Use device: ', device)
+
+    return args, device
+
 
 def initialize_env(name):
     config = pyhocon.ConfigFactory.parse_file('experiments.conf')[name]
@@ -39,6 +47,10 @@ def create_Uttdata(config):
     _, _, posts, cmnts, turn = create_traindata(config)
     X_train, Y_train, X_valid, Y_valid, X_test, Y_test, _, _, _ = separate_data(posts, cmnts, turn)
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
+
+def minimize(data):
+    return data[:500]
+
 
 def make_batchidx(X):
     length = {}
@@ -61,6 +73,12 @@ def train(experiment):
     else:
         utt_vocab = None
     print('Finish create vocab dic...')
+    
+    X_train, Y_train, X_valid, Y_valid = minimize(X_train), minimize(Y_train), minimize(X_valid), minimize(Y_valid)
+    XU_train, YU_train, XU_valid, YU_valid = minimize(XU_train), minimize(YU_train), minimize(XU_valid), minimize(YU_valid)
+
+    with open('./data/minidata.pkl', 'wb') as f:
+        pickle.dump(XU_train, f)
 
     # Tokenize sequences
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
@@ -74,8 +92,7 @@ def train(experiment):
         XU_valid = []
         YU_valid = []
 
-
-    print('Finish preparing dataset...')
+        print('Finish preparing dataset...')
 
     assert len(X_train) == len(Y_train), 'Unexpect content in train data'
     assert len(X_valid) == len(Y_valid), 'Unexpect content in valid data'
@@ -114,7 +131,7 @@ def train(experiment):
     print('Success construct model...')
 
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'])
 
     print('---start training---')
 
@@ -135,6 +152,8 @@ def train(experiment):
 
             context_hidden = da_context.initHidden(step_size, device) if config['use_da'] else None
             utt_context_hidden = utt_context.initHidden(step_size, device) if config['use_uttcontext'] else None
+            total_loss = 0
+
             if config['use_da']:
                 da_context_opt.zero_grad()
                 da_encoder_opt.zero_grad()
@@ -172,7 +191,6 @@ def train(experiment):
 
             assert len(X_seq) == len(Y_seq), 'Unexpect sequence length'
 
-
             for i in range(0, max_conv_len):
                 X_tensor = torch.tensor([[X[i]] for X in X_seq]).to(device)
                 Y_tensor = torch.tensor([[Y[i]] for Y in Y_seq]).to(device)
@@ -204,7 +222,7 @@ def train(experiment):
                                                          da_context_hidden=context_hidden,
                                                          utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                          utt_context_hidden=utt_context_hidden,
-                                                         criterion=criterion, last=last, config=config)
+                                                         criterion=criterion, last=last, loss=total_loss, config=config)
                     print_total_loss += loss
                     plot_total_loss += loss
 
@@ -221,18 +239,19 @@ def train(experiment):
                         utt_context_opt.step()
 
                 else:
-                    context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor, step_size=step_size, 
+                    loss, context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor, step_size=step_size, 
                                                    turn=turn_tensor,
                                                    da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
                                                    da_context_hidden=context_hidden,
                                                    utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                    utt_context_hidden=utt_context_hidden,
-                                                   criterion=criterion, last=last, config=config)
+                                                   criterion=criterion, last=last, loss=total_loss, config=config)
+                    total_loss += loss
             k += step_size
         print()
         valid_loss = validation(X_valid=X_valid, Y_valid=Y_valid, XU_valid=XU_valid, YU_valid=YU_valid, turn=Vturn,
                                 model=model, da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
-                                utt_encoder=utt_encoder, utt_context=utt_context, utt_decoder=utt_decoder, config=config)
+                                utt_encoder=utt_encoder, utt_context=utt_context, utt_decoder=utt_decoder, utt_vocab=utt_vocab, config=config)
 
         if _valid_loss is None:
             if config['use_da']:
@@ -284,11 +303,11 @@ def train(experiment):
 
 def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
                da_encoder, da_decoder, da_context,
-               utt_encoder, utt_context, utt_decoder, config):
+               utt_encoder, utt_context, utt_decoder, utt_vocab, config):
 
     da_context_hidden = da_context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'])
     total_loss = 0
     k = 0
 
@@ -326,4 +345,6 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
     return total_loss
 
 if __name__ == '__main__':
+    global args, device
+    args, device = parse()
     train(args.expr)

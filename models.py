@@ -181,16 +181,14 @@ class EncoderDecoderModel(nn.Module):
     def forward(self, X_da, Y_da, X_utt, Y_utt, step_size, turn, 
                 da_encoder, da_context, da_decoder, da_context_hidden, 
                 utt_encoder, utt_context, utt_decoder, utt_context_hidden, 
-                criterion, last, config):
+                criterion, last, loss, config):
         
-        loss = 0
         if config['use_da']:
             da_encoder_hidden = da_encoder(X_da)
             da_context_output, da_context_hidden = da_context(da_encoder_hidden, da_context_hidden)
-
         if config['turn']:
             turn = turn.float()
-            turn = turn.unsqueeze(1)     
+            turn = turn.unsqueeze(1)
         
         if config['use_utt']:
             utt_encoder_hidden = utt_encoder.initHidden(step_size, self.device)
@@ -212,8 +210,8 @@ class EncoderDecoderModel(nn.Module):
             utt_encoder_hidden = utt_encoder.initHidden(step_size, self.device)
             utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
             if config['turn']:
-                utt_encoder_hidden = torch.cat((utt_encoder_output, turn), dim=2)
-            utt_context_output, utt_context_hidden = utt_context(utt_encoder_hidden, utt_context_hidden) # (batch_size, 1, UTT_HIDDEN)
+                utt_encoder_output = torch.cat((utt_encoder_output, turn), dim=2)
+            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output, utt_context_hidden) # (batch_size, 1, UTT_HIDDEN)
             if config['use_da']:
                 da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
                 utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden), dim=2) # (batch_size, 1, DEC_HIDDEN)
@@ -248,7 +246,7 @@ class EncoderDecoderModel(nn.Module):
             loss.backward()
             return loss.item(), da_context_hidden, utt_context_hidden
         else:
-            return da_context_hidden, utt_context_hidden
+            return loss, da_context_hidden, utt_context_hidden
 
 
     def evaluate(self, X_da, Y_da, X_utt, Y_utt, turn,
@@ -282,6 +280,7 @@ class EncoderDecoderModel(nn.Module):
                     else:
                         da_dec_hidden = utt_encoder_output
                         utt_dec_hidden = utt_encoder_hidden
+
             elif config['use_uttcontext']:
                 utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
                 utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (1, 1, UTT_HIDDEN)
@@ -337,9 +336,7 @@ class EncoderDecoderModel(nn.Module):
 
             if config['use_utt']:
                 utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
-                seq_len = X_utt.size()[1]
-                for ei in range(seq_len):
-                    utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt[ei], utt_encoder_hidden) # (1, 1, UTT_HIDDEN)
+                utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden) # (1, 1, UTT_HIDDEN)
                 if config['turn']:
                     if config['use_da']:
                         da_dec_hidden = torch.cat((da_context_output, utt_encoder_output, turn), dim=2) # (1, 1, DEC_HIDDEN)
@@ -379,15 +376,83 @@ class EncoderDecoderModel(nn.Module):
 
             utt_decoder_hidden = utt_dec_hidden
             prev_words = torch.tensor([[BOS_token]]).to(self.device)
-            pred_seq = []
 
+            if config['beam_size']:
+                pred_seq, utt_decoder_hidden = self._beam_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config)
+            else:
+                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config)
+
+        return pred_seq, da_context_hidden, utt_context_hidden
+
+    def _greedy_decode(self, prev_words, decoder, decoder_hidden, EOS_token, config):
+        pred_seq = []
+        for _ in range(config['max_len']):
+            preds, decoder_hidden = decoder(prev_words, decoder_hidden)
+            _, topi = preds.topk(1)
+            pred_seq.append(topi.item())
+            prev_words = torch.tensor([[topi]]).to(self.device)
+            if topi == EOS_token:
+                break
+        return pred_seq, decoder_hidden
+
+    def _beam_decode(self, prev_words, decoder, decoder_hidden, EOS_token, config):
+        pred_seq = []
+
+        return pred_seq, decoder_hidden
+
+class seq2seq(nn.Module):
+    def __init__(self, device):
+        super(seq2seq, self).__init__()
+        self.device = device
+
+    def forward(self, X, Y, encoder, decoder, step_size, criterion, config):
+        loss = 0
+
+        encoder_hidden = encoder.initHidden(step_size, self.device)
+        encoder_hidden, _ = encoder(X, encoder_hidden)
+
+        decoder_hidden = encoder_hidden
+        for j in range(len(Y[0]) - 1):
+            prev_words = Y[:, j].unsqueeze(1)
+            preds, decoder_hidden = decoder(prev_words, decoder_hidden)
+            _, topi = preds.topk(1)
+            loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y[:, j + 1])
+
+        loss.backward()
+
+        return loss.item()
+
+    def evaluate(self, X, Y, encoder, decoder, criterion, config):
+        with torch.no_grad():
+            loss = 0
+
+            encoder_hidden = encoder.initHidden(1, self.device)
+            encoder_hidden, _ = encoder(X, encoder_hidden)
+
+            decoder_hidden = encoder_hidden
+            for j in range(len(Y[0]) - 1):
+                prev_words = Y[:, j].unsqueeze(1)
+                preds, decoder_hidden = decoder(prev_words, decoder_hidden)
+                _, topi = preds.topk(1)
+                loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y[:, j + 1])
+
+            return loss.item()
+    def predict(self, X, encoder, decoder, config, EOS_token, BOS_token):
+        with torch.no_grad():
+            encoder_hidden = encoder.initHidden(1, self.device)
+            encoder_hidden, _ = encoder(X, encoder_hidden)
+
+            decoder_hidden = encoder_hidden
+            prev_words = torch.tensor([[BOS_token]]).to(self.device)
+            pred_seq = []
             for _ in range(config['max_len']):
-                preds, utt_decoder_hidden = utt_decoder(prev_words, utt_decoder_hidden)
+                preds, decoder_hidden = decoder(prev_words, decoder_hidden)
                 _, topi = preds.topk(1)
                 pred_seq.append(topi.item())
                 prev_words = torch.tensor([[topi]]).to(self.device)
                 if topi == EOS_token:
                     break
+        return pred_seq
 
-        return pred_seq, da_context_hidden, utt_context_hidden
+
 
