@@ -6,8 +6,10 @@ from torch import nn, optim
 from models import *
 from utils import *
 from nn_blocks import *
-from train import initialize_env, create_Uttdata, make_batchidx, minimize, device
+from train import initialize_env, create_Uttdata, make_batchidx, minimize, parse
 import random
+import argparse
+import pickle
 
 
 def parallelize(X, Y):
@@ -21,11 +23,17 @@ def train(experiment):
     X_train, Y_train, X_valid, Y_valid, _, _ = create_Uttdata(config)
 
     vocab = utt_Vocab(config, X_train + X_valid, Y_train + Y_valid)
-    X_train, Y_train = vocab.tokenize(X_train, Y_train)
-    X_valid, Y_valid = vocab.tokenize(X_valid, Y_valid)
 
     X_train, Y_train = minimize(X_train), minimize(Y_train)
     X_valid, Y_valid = minimize(X_valid), minimize(Y_valid)
+
+    with open('./data/minidata.pkl', 'wb') as f:
+        a, b = parallelize(X_train, Y_train)
+        pickle.dump([(c, d) for c, d in zip(a, b)], f)
+
+
+    X_train, Y_train = vocab.tokenize(X_train, Y_train)
+    X_valid, Y_valid = vocab.tokenize(X_valid, Y_valid)
 
     X_train, Y_train = parallelize(X_train, Y_train)
     X_valid, Y_valid = parallelize(X_valid, Y_valid)
@@ -127,5 +135,41 @@ def validation(X, Y, model, encoder, decoder, vocab, config):
 
     return total_loss
 
+def interpreter(experiment):
+    config = initialize_env(experiment)
+    X_train, Y_train, X_valid, Y_valid, _, _ = create_Uttdata(config)
+    vocab = utt_Vocab(config, X_train + X_valid, Y_train + Y_valid)
+
+    encoder = UtteranceEncoder(utt_input_size=len(vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=vocab.word2id['<UttPAD>']).to(device)
+    decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
+
+    encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_state{}.model'.format(args.epoch))))
+    decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_state{}.model'.format(args.epoch))))
+
+    model = seq2seq(device).to(device)
+
+    while 1:
+        utterance = input('>> ').lower()
+
+        if utterance == 'exit' or utterance == 'bye':
+            print('see you again.')
+            break
+
+        X_seq = en_preprocess(utterance)
+        X_seq = [vocab.word2id[word] if word in vocab.word2id.keys() else vocab.word2id['<UNK>'] for word in X_seq]
+
+        X_tensor = torch.tensor([X_seq]).to(device)
+
+        pred_seq = model.predict(X=X_tensor, encoder=encoder, decoder=decoder, config=config, EOS_token=vocab.word2id['<EOS>'], BOS_token=vocab.word2id['<BOS>'])
+
+        print()
+        print(' '.join([vocab.id2word[wid] for wid in pred_seq]))
+        print()
+
+    return 0
+
 if __name__ == '__main__':
-    train('seq2seq')
+    global args, device
+    args, device = parse()
+    # train('seq2seq')
+    interpreter('seq2seq')

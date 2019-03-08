@@ -6,18 +6,12 @@ from torch import optim
 from models import *
 from nn_blocks import *
 from utils import *
-from train import initialize_env, create_DAdata, create_Uttdata, device
+from train import initialize_env, create_DAdata, create_Uttdata, parse
 import argparse
 from pprint import pprint
 import numpy as np
 import pickle
 
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--expr', default='DAonly')
-parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
-parser.add_argument('--epoch', type=int, default=10)
-args = parser.parse_args()
 
 def interpreter(experiment):
     print('load vocab')
@@ -90,7 +84,6 @@ def interpreter(experiment):
                                                                       utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                                       utt_context_hidden=utt_context_hidden,
                                                                       config=config, EOS_token=utt_vocab.word2id['<EOS>'], BOS_token=utt_vocab.word2id['<BOS>'])
-        print()
         print(' '.join([utt_vocab.id2word[wid] for wid in pred_seq]))
 
         print()
@@ -98,5 +91,7 @@ def interpreter(experiment):
     return 0
 
 if __name__ == '__main__':
+    global args, device
+    args, device = parse()
     interpreter(args.expr)
 

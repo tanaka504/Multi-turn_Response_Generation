@@ -11,17 +11,24 @@ from nn_blocks import *
 import argparse
 import random
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--expr', '-e', default='DAonly', help='input experiment config')
-parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
-args = parser.parse_args()
 
-if torch.cuda.is_available():
-    device = torch.device('cuda:{}'.format(args.gpu))
-else:
-    device = 'cpu'
 
-print('Use device: ', device)
+def parse():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--expr', '-e', default='DAonly', help='input experiment config')
+    parser.add_argument('--gpu', '-g', type=int, default=0, help='input gpu num')
+    parser.add_argument('--epoch', type=int, default=10)
+    args = parser.parse_args()
+    
+    if torch.cuda.is_available():
+        device = torch.device('cuda:{}'.format(args.gpu))
+    else:
+        device = 'cpu'
+
+    print('Use device: ', device)
+
+    return args, device
+
 
 def initialize_env(name):
     config = pyhocon.ConfigFactory.parse_file('experiments.conf')[name]
@@ -338,4 +345,6 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
     return total_loss
 
 if __name__ == '__main__':
+    global args, device
+    args, device = parse()
     train(args.expr)
