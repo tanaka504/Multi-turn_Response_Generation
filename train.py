@@ -49,7 +49,7 @@ def create_Uttdata(config):
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
 
 def minimize(data):
-    return data[:500]
+    return data[:1000]
 
 
 def make_batchidx(X):
@@ -132,15 +132,15 @@ def train(experiment, fine_tuning=False):
 
         if fine_tuning:
             print('fine tuning')
-            utt_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_enc_beststate.model')))
-            utt_decoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_dec_beststate.model')))
+            utt_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_enc_beststate.model')))
+            utt_decoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_dec_beststate.model')))
 
     if config['use_uttcontext']:
         utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
         utt_context_opt = optim.Adam(utt_context.parameters(), lr=lr)
 
         if fine_tuning:
-            utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_context_beststate.model')))
+            utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_context_beststate.model')))
 
     model = EncoderDecoderModel(device).to(device)
     print('Success construct model...')
@@ -363,5 +363,5 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
 if __name__ == '__main__':
     global args, device
     args, device = parse()
-    fine_tuning = False if args.expr == 'pretrain' else True
+    fine_tuning = False if 'pretrain' in args.expr else True
     train(args.expr, fine_tuning=fine_tuning)

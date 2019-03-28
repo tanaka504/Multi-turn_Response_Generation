@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+import gensim
 
 
 class DAEncoder(nn.Module):
@@ -53,7 +54,7 @@ class UtteranceEncoder(nn.Module):
         self.padding_idx = padding_idx
         self.xe = nn.Embedding(utt_input_size, embed_size)
         self.eh = nn.Linear(embed_size, utterance_hidden)
-        self.hh = nn.GRU(utterance_hidden, utterance_hidden, num_layers=1, batch_first=True)
+        self.hh = nn.GRU(utterance_hidden, utterance_hidden, num_layers=1, batch_first=True, bidirectional=True)
 
     def forward(self, X, hidden):
         lengths = (X != self.padding_idx).sum(dim=1)
@@ -77,7 +78,7 @@ class UtteranceEncoder(nn.Module):
         return output, hidden
 
     def initHidden(self, batch_size, device):
-        return torch.zeros(1, batch_size, self.hidden_size).to(device)
+        return torch.zeros(2, batch_size, self.hidden_size).to(device)
 
 
 class UtteranceContextEncoder(nn.Module):

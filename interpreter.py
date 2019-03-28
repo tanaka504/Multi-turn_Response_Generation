@@ -63,7 +63,9 @@ def interpreter(experiment):
             break
 
         XU_seq = en_preprocess(utterance)
+        XU_seq = ['<BOS>'] + XU_seq + ['<EOS>']
         XU_seq = [utt_vocab.word2id[word] if word in utt_vocab.word2id.keys() else utt_vocab.word2id['<UNK>'] for word in XU_seq]
+        print(XU_seq)
 
         # TODO: How to deal utterance's DA
         DA = da_vocab.word2id['<Statement>']
