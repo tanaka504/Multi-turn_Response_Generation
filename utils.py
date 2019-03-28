@@ -74,12 +74,14 @@ class utt_Vocab:
         for post, cmnt in zip(self.posts, self.cmnts):
             for seq in post:
                 for word in seq:
+                    if word in vocab: continue
                     if word in vocab_count:
                         vocab_count[word] += 1
                     else:
                         vocab_count[word] = 1
             for seq in cmnt:
                 for word in seq:
+                    if word in vocab: continue
                     if word in vocab_count:
                         vocab_count[word] += 1
                     else:

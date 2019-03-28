@@ -49,7 +49,7 @@ def create_Uttdata(config):
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
 
 def minimize(data):
-    return data[:500]
+    return data[:1000]
 
 
 def make_batchidx(X):
@@ -61,7 +61,7 @@ def make_batchidx(X):
             length[len(conv)] = [idx]
     return [v for k, v in sorted(length.items(), key=lambda x: x[0])]
 
-def train(experiment):
+def train(experiment, fine_tuning=False):
     print('loading setting "{}"...'.format(experiment))
     config = initialize_env(experiment)
     X_train, Y_train, X_valid, Y_valid, _, _, Tturn, Vturn, _ = create_DAdata(config)
@@ -104,6 +104,7 @@ def train(experiment):
     print_total_loss = 0
     plot_total_loss = 0
 
+    # constract models
     da_encoder = None
     da_context = None
     if config['use_da']:
@@ -111,6 +112,11 @@ def train(experiment):
         da_context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
         da_encoder_opt = optim.Adam(da_encoder.parameters(), lr=lr)
         da_context_opt = optim.Adam(da_context.parameters(), lr=lr)
+
+        if fine_tuning:
+            da_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'enc_beststate.model')))
+            da_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'context_beststate.model')))
+
 
     da_decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'], da_hidden=config['DEC_HIDDEN']).to(device)
     da_decoder_opt = optim.Adam(da_decoder.parameters(), lr=lr)
@@ -123,15 +129,25 @@ def train(experiment):
         utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
         utt_encoder_opt = optim.Adam(utt_encoder.parameters(), lr=lr)
         utt_decoder_opt = optim.Adam(utt_decoder.parameters(), lr=lr)
+
+        if fine_tuning:
+            print('fine tuning')
+            utt_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_enc_beststate.model')))
+            utt_decoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_dec_beststate.model')))
+
     if config['use_uttcontext']:
         utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
         utt_context_opt = optim.Adam(utt_context.parameters(), lr=lr)
+
+        if fine_tuning:
+            utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_context_beststate.model')))
 
     model = EncoderDecoderModel(device).to(device)
     print('Success construct model...')
 
 
     criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'])
+    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'])
 
     print('---start training---')
 
@@ -347,4 +363,5 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
 if __name__ == '__main__':
     global args, device
     args, device = parse()
-    train(args.expr)
+    fine_tuning = False if 'pretrain' in args.expr else True
+    train(args.expr, fine_tuning=fine_tuning)
