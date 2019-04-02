@@ -44,9 +44,11 @@ def train(experiment):
 
     encoder = UtteranceEncoder(utt_input_size=len(vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=vocab.word2id['<UttPAD>']).to(device)
     decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
+    context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
 
     encoder_opt = optim.Adam(encoder.parameters(), lr=lr)
     decoder_opt = optim.Adam(decoder.parameters(), lr=lr)
+    context_opt = optim.Adam(context.parameters(), lr=lr)
 
     model = seq2seq(device).to(device)
 
@@ -86,17 +88,18 @@ def train(experiment):
             X_tensor = torch.tensor([x for x in X_seq]).to(device)
             Y_tensor = torch.tensor([y for y in Y_seq]).to(device)
             
-            loss = model.forward(X=X_tensor, Y=Y_tensor, encoder=encoder, decoder=decoder, step_size=step_size, criterion=criterion, config=config)
+            loss = model.forward(X=X_tensor, Y=Y_tensor, encoder=encoder, decoder=decoder, context=context, step_size=step_size, criterion=criterion, config=config)
             print_total_loss += loss
 
             encoder_opt.step()
             decoder_opt.step()
+            context_opt.step()
 
             k += step_size
 
         print()
             
-        valid_loss = validation(X=X_valid, Y=Y_valid, model=model, encoder=encoder, decoder=decoder, vocab=vocab, config=config)
+        valid_loss = validation(X=X_valid, Y=Y_valid, model=model, encoder=encoder, decoder=decoder, context=context, vocab=vocab, config=config)
 
         if _valid_loss is None:
             torch.save(encoder.state_dict(), os.path.join(config['log_dir'], 'enc_beststate.model'))
@@ -116,10 +119,10 @@ def train(experiment):
             torch.save(encoder.state_dict(), os.path.join(config['log_dir'], 'enc_state{}.model'.format(e + 1)))
             torch.save(decoder.state_dict(), os.path.join(config['log_dir'], 'dec_state{}.model'.format(e + 1)))
 
-        print()
-        print('Finish training | exec time: %.4f [sec]' % (time.time() - start))
+    print()
+    print('Finish training | exec time: %.4f [sec]' % (time.time() - start))
 
-def validation(X, Y, model, encoder, decoder, vocab, config):
+def validation(X, Y, model, encoder, decoder, context, vocab, config):
     criterion = nn.CrossEntropyLoss(ignore_index=vocab.word2id['<UttPAD>'])
     total_loss = 0
 
@@ -130,7 +133,7 @@ def validation(X, Y, model, encoder, decoder, vocab, config):
         X_tensor = torch.tensor([X_seq]).to(device)
         Y_tensor = torch.tensor([Y_seq]).to(device)
 
-        loss = model.evaluate(X=X_tensor, Y=Y_tensor, encoder=encoder, decoder=decoder, criterion=criterion, config=config)
+        loss = model.evaluate(X=X_tensor, Y=Y_tensor, encoder=encoder, decoder=decoder, context=context, criterion=criterion, config=config)
         total_loss += loss
 
     return total_loss
@@ -156,6 +159,7 @@ def interpreter(experiment):
             break
 
         X_seq = en_preprocess(utterance)
+        X_seq = ['<BOS>'] + X_seq + ['<EOS>']
         X_seq = [vocab.word2id[word] if word in vocab.word2id.keys() else vocab.word2id['<UNK>'] for word in X_seq]
 
         X_tensor = torch.tensor([X_seq]).to(device)
@@ -171,5 +175,5 @@ def interpreter(experiment):
 if __name__ == '__main__':
     global args, device
     args, device = parse()
-    # train('seq2seq')
-    interpreter('seq2seq')
+    train('seq2seq')
+    # interpreter('seq2seq')
