@@ -145,7 +145,7 @@ def interpreter(experiment):
 
     encoder = UtteranceEncoder(utt_input_size=len(vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=vocab.word2id['<UttPAD>']).to(device)
     decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
-
+    context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
     encoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'enc_state{}.model'.format(args.epoch))))
     decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'dec_state{}.model'.format(args.epoch))))
 
@@ -164,7 +164,7 @@ def interpreter(experiment):
 
         X_tensor = torch.tensor([X_seq]).to(device)
 
-        pred_seq = model.predict(X=X_tensor, encoder=encoder, decoder=decoder, config=config, EOS_token=vocab.word2id['<EOS>'], BOS_token=vocab.word2id['<BOS>'])
+        pred_seq = model.predict(X=X_tensor, encoder=encoder, decoder=decoder, context=context, config=config, EOS_token=vocab.word2id['<EOS>'], BOS_token=vocab.word2id['<BOS>'])
 
         print()
         print(' '.join([vocab.id2word[wid] for wid in pred_seq]))
@@ -175,5 +175,5 @@ def interpreter(experiment):
 if __name__ == '__main__':
     global args, device
     args, device = parse()
-    train('seq2seq')
-    # interpreter('seq2seq')
+    # train('seq2seq')
+    interpreter('seq2seq')

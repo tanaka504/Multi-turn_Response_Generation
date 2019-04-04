@@ -204,7 +204,6 @@ class EncoderDecoderModel(nn.Module):
             da_dec_hidden = utt_context_output
             utt_dec_hidden = utt_context_hidden
 
-
         # da_decoder_output = da_decoder(da_dec_hidden)
         # da_decoder_output = da_decoder_output.squeeze(1)
 
@@ -340,6 +339,7 @@ class seq2seq(nn.Module):
         context_output, context_hidden = context(encoder_output, context_hidden)
 
         decoder_hidden = context_hidden
+        print(decoder_hidden)
         for j in range(len(Y[0]) - 1):
             prev_words = Y[:, j].unsqueeze(1)
             preds, decoder_hidden = decoder(prev_words, decoder_hidden)
@@ -368,12 +368,15 @@ class seq2seq(nn.Module):
                 loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y[:, j + 1])
 
             return loss.item()
-    def predict(self, X, encoder, decoder, config, EOS_token, BOS_token):
+    def predict(self, X, encoder, decoder, context, config, EOS_token, BOS_token):
         with torch.no_grad():
             encoder_hidden = encoder.initHidden(1, self.device)
-            encoder_hidden, _ = encoder(X, encoder_hidden)
+            encoder_output, _ = encoder(X, encoder_hidden)
 
-            decoder_hidden = encoder_hidden
+            context_hidden = context.initHidden(1, self.device)
+            context_output, context_hidden = context(encoder_output, context_hidden)
+            
+            decoder_hidden = context_hidden
             prev_words = torch.tensor([[BOS_token]]).to(self.device)
             pred_seq = []
             for _ in range(config['max_len']):

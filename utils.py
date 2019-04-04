@@ -2,6 +2,7 @@ import os, re, json
 import matplotlib.pyplot as plt
 import torch
 from nltk import tokenize
+import pickle
 
 EOS_token = '<EOS>'
 BOS_token = '<BOS>'
@@ -21,13 +22,16 @@ damsl_align = {'<Uninterpretable>': ['%', 'x'],
                '<turn>': ['<turn>']}
 
 class da_Vocab:
-    def __init__(self, config, posts, cmnts):
+    def __init__(self, config, posts=[], cmnts=[], create_vocab=True):
         self.word2id = None
         self.id2word = None
         self.config = config
         self.posts = posts
         self.cmnts = cmnts
-        self.construct()
+        if create_vocab:
+            self.construct()
+        else:
+            self.load()
 
     def construct(self):
         vocab = {'<PAD>': 0}
@@ -58,14 +62,24 @@ class da_Vocab:
         Y_tensor = [[self.word2id[token] for token in sentence] for sentence in Y_tensor]
         return X_tensor, Y_tensor
 
+    def save(self):
+        pickle.dump(self.word2id, open(os.path.join(self.config['log_root'], 'da_vocab.dict'), 'wb'))
+
+    def load(self):
+        self.word2id = pickle.load(open(os.path.join(self.config['log_root'], 'da_vocab.dict'), 'rb'))
+        self.id2word = {v: k for k, v in self.word2id.items()}
+
 class utt_Vocab:
-    def __init__(self, config, posts, cmnts):
+    def __init__(self, config, posts=[], cmnts=[], create_vocab=True):
         self.word2id = None
         self.id2word = None
         self.config = config
         self.posts = posts
         self.cmnts = cmnts
-        self.construct()
+        if create_vocab:
+            self.construct()
+        else:
+            self.load()
 
     def construct(self):
         vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<ConvPAD>': 4}
@@ -100,6 +114,13 @@ class utt_Vocab:
         Y_tensor = [[[self.word2id[token] if token in self.word2id else self.word2id['<UNK>'] for token in seq] for seq in dialogue] for dialogue in Y_tensor]
         return X_tensor, Y_tensor
 
+    def save(self):
+        pickle.dump(self.word2id, open(os.path.join(self.config['log_root'], 'utterance_vocab.dict'), 'wb'))
+
+    def load(self):
+        self.word2id = pickle.load(open(os.path.join(self.config['log_root'], 'utterance_vocab.dict'), 'rb'))
+        self.id2word = {v: k for k, v in self.word2id.items()}
+
 def create_traindata(config):
     files = [f for f in os.listdir(config['train_path']) if file_pattern.match(f)]
     da_posts = []
@@ -125,9 +146,6 @@ def create_traindata(config):
                         da_seq.append(da)
                         utt_seq.append(utt)
                         turn_seq.append(0)
-                    if not config['turn']:
-                        da_seq.append('<turn>')
-                        utt_seq.append('<turn>')
                     turn_seq[-1] = 1
                 # single-turn single dialogue case
                 else:

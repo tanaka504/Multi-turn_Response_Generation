@@ -12,7 +12,6 @@ import argparse
 import random
 
 
-
 def parse():
     parser = argparse.ArgumentParser()
     parser.add_argument('--expr', '-e', default='DAonly', help='input experiment config')
@@ -70,14 +69,17 @@ def train(experiment, fine_tuning=False):
 
     da_vocab = da_Vocab(config, X_train + X_valid, Y_train + Y_valid)
     utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
+    da_vocab.save()
+    utt_vocab.save()
     print('Finish create vocab dic...')
 
     # minimize data
     X_train, Y_train, X_valid, Y_valid = minimize(X_train), minimize(Y_train), minimize(X_valid), minimize(Y_valid)
     XU_train, YU_train, XU_valid, YU_valid = minimize(XU_train), minimize(YU_train), minimize(XU_valid), minimize(YU_valid)
 
-    with open('./data/minidata.pkl', 'wb') as f:
-        pickle.dump(XU_train, f)
+
+    with open('./data/minidata_hred.pkl', 'wb') as f:
+        pickle.dump([(x, y) for x, y in zip(XU_train, YU_train)], f)
 
     # Tokenize sequences
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
@@ -100,9 +102,6 @@ def train(experiment, fine_tuning=False):
     plot_total_loss = 0
 
     # constract models
-    da_encoder = None
-    da_context = None
-    da_decoder = None
     if config['use_da']:
         da_encoder = DAEncoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'], da_hidden=config['DA_HIDDEN']).to(device)
         da_context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
@@ -115,6 +114,10 @@ def train(experiment, fine_tuning=False):
         if fine_tuning:
             da_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'enc_beststate.model')))
             da_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'context_beststate.model')))
+    else:
+        da_encoder = None
+        da_context = None
+        da_decoder = None
 
     utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
     utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
@@ -133,6 +136,7 @@ def train(experiment, fine_tuning=False):
         utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_context_beststate.model')))
 
     model = EncoderDecoderModel(device).to(device)
+    # model = seq2seq(device).to(device)
     print('Success construct model...')
 
 
@@ -225,6 +229,7 @@ def train(experiment, fine_tuning=False):
                                                          utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                          utt_context_hidden=utt_context_hidden,
                                                          criterion=criterion, last=last, config=config)
+                    # loss = model.forward(X=XU_tensor, Y=YU_tensor, encoder=utt_encoder, decoder=utt_decoder, context=utt_context, step_size=step_size, criterion=criterion, config=config)
                     print_total_loss += loss
                     plot_total_loss += loss
 
@@ -243,6 +248,8 @@ def train(experiment, fine_tuning=False):
                                                    utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                    utt_context_hidden=utt_context_hidden,
                                                    criterion=criterion, last=last, config=config)
+                    # loss = model.forward(X=XU_tensor, Y=YU_tensor, encoder=utt_encoder, decoder=utt_decoder, context=utt_context, step_size=step_size, criterion=criterion, config=config)
+
 
             k += step_size
 
@@ -296,7 +303,6 @@ def train(experiment, fine_tuning=False):
             torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_state{}.model'.format(e + 1)))
             torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_state{}.model'.format(e + 1)))
 
-
     print()
     print('Finish training | exec time: %.4f [sec]' % (time.time() - start))
 
@@ -330,6 +336,9 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
                                                   utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                   utt_context_hidden=utt_context_hidden,
                                                   criterion=criterion, config=config)
+            # loss = model.evaluate(X=XU_tensor, Y=YU_tensor, encoder=utt_encoder, decoder=utt_decoder,
+                                 # context=utt_context, criterion=criterion, config=config)
+
             total_loss += loss
     return total_loss
 
