@@ -178,60 +178,36 @@ class EncoderDecoderModel(nn.Module):
         super(EncoderDecoderModel, self).__init__()
         self.device = device
 
-    def forward(self, X_da, Y_da, X_utt, Y_utt, step_size, turn, 
+    def forward(self, X_da, Y_da, X_utt, Y_utt, step_size,
                 da_encoder, da_context, da_decoder, da_context_hidden, 
                 utt_encoder, utt_context, utt_decoder, utt_context_hidden, 
-                criterion, last, loss, config):
-        
+                criterion, last, config):
+        loss = 0
+
+        # Input Dialogue Act
         if config['use_da']:
             da_encoder_hidden = da_encoder(X_da)
             da_context_output, da_context_hidden = da_context(da_encoder_hidden, da_context_hidden)
 
-        if config['turn']:
-            turn = turn.float()
-            turn = turn.unsqueeze(1)
-        
-        if config['use_utt']:
-            utt_encoder_hidden = utt_encoder.initHidden(step_size, self.device)
-            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden) # (batch_size, 1, UTT_HIDDEN)
-            if config['turn']:
-                if config['use_da']:
-                    dec_hidden = torch.cat((da_context_output, utt_encoder_output, turn), dim=2) # (batch_size, 1, DEC_HIDDEN)
-                else:
-                    da_dec_hidden = torch.cat((utt_encoder_output, turn), dim=2)
-            else:
-                if config['use_da']:
-                    da_dec_hidden = torch.cat((da_context_output, utt_encoder_output), dim=2)
-                    utt_dec_hidden = torch.cat((da_context_hidden, utt_encoder_hidden), dim=2)
-                else:
-                    da_dec_hidden = utt_encoder_output
-                    utt_dec_hidden = utt_encoder_hidden
+        # Encode Utterance
+        utt_encoder_hidden = utt_encoder.initHidden(step_size, self.device)
+        utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
-        elif config['use_uttcontext']:
-            utt_encoder_hidden = utt_encoder.initHidden(step_size, self.device)
-            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
-            # if config['turn']:
-            #     utt_encoder_output = torch.cat((utt_encoder_output, turn), dim=2)
-            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output, utt_context_hidden) # (batch_size, 1, UTT_HIDDEN)
-            if config['use_da']:
-                da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
-                utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden), dim=2) # (batch_size, 1, DEC_HIDDEN)
-                if not config['use_dacontext']:
-                    da_dec_hidden = torch.cat((da_encoder_hidden, utt_context_output), dim=2)
-            else:
-                da_dec_hidden = utt_context_output
-                utt_dec_hidden = utt_context_hidden
+        # Update Context Encoder
+        utt_context_output, utt_context_hidden = utt_context(utt_encoder_output, utt_context_hidden) # (batch_size, 1, UTT_HIDDEN)
 
+        # concat DA hidden and Utterance hidden
+        if config['use_da']:
+            da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
+            utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden), dim=2) # (batch_size, 1, DEC_HIDDEN)
         else:
-            if config['turn']:
-                da_dec_hidden = torch.cat((da_context_output, turn), dim=2)
-            else:
-                da_dec_hidden = da_context_output
-                utt_dec_hidden = da_context_hidden
+            da_dec_hidden = utt_context_output
+            utt_dec_hidden = utt_context_hidden
 
         # da_decoder_output = da_decoder(da_dec_hidden)
         # da_decoder_output = da_decoder_output.squeeze(1)
-        
+
+        # Decode
         utt_decoder_hidden = utt_dec_hidden
         for j in range(len(Y_utt[0]) - 1):
             prev_words = Y_utt[:, j].unsqueeze(1)
@@ -250,7 +226,7 @@ class EncoderDecoderModel(nn.Module):
             return loss, da_context_hidden, utt_context_hidden
 
 
-    def evaluate(self, X_da, Y_da, X_utt, Y_utt, turn,
+    def evaluate(self, X_da, Y_da, X_utt, Y_utt,
                  da_encoder, da_decoder, da_context, da_context_hidden,
                  utt_encoder, utt_decoder, utt_context, utt_context_hidden,
                  criterion, config):
@@ -260,55 +236,26 @@ class EncoderDecoderModel(nn.Module):
                 da_encoder_hidden = da_encoder(X_da)
                 da_context_output, da_context_hidden = da_context(da_encoder_hidden, da_context_hidden)
 
-            if config['turn']:
-                turn = turn.float()
-                turn = turn.unsqueeze(1)  # (batch_size, 1, 1)
+            # Encode Utterance
+            utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
+            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt,
+                                                                 utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
-            if config['use_utt']:
-                utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
-                utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden) # (1, 1, UTT_HIDDEN)
-                if config['turn']:
-                    if config['use_da']:
-                        da_dec_hidden = torch.cat((da_context_output, utt_encoder_output, turn), dim=2) # (1, 1, DEC_HIDDEN)
-                        utt_dec_hidden = torch.cat((da_context_hidden, utt_encoder_hidden, turn), dim=2)
-                    else:
-                        da_dec_hidden = torch.cat((utt_encoder_output, turn), dim=2)
-                        utt_dec_hidden = torch.cat((utt_encoder_hidden, turn), dim=2)
-                else:
-                    if config['use_da']:
-                        da_dec_hidden = torch.cat((da_context_output, utt_encoder_output), dim=2)
-                        utt_dec_hidden = torch.cat((da_context_hidden, utt_encoder_hidden), dim=2)
-                    else:
-                        da_dec_hidden = utt_encoder_output
-                        utt_dec_hidden = utt_encoder_hidden
+            # Update Context Encoder
+            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output,
+                                                                 utt_context_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
-            elif config['use_uttcontext']:
-                utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
-                utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (1, 1, UTT_HIDDEN)
-                # if config['turn']:
-                #     utt_encoder_hidden = torch.cat((utt_encoder_output, turn), dim=2)
-                utt_context_output, utt_context_hidden = utt_context(utt_encoder_output, utt_context_hidden) # (1, 1, UTT_HIDDEN)
-                if config['use_da']:
-                    utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden), dim=2) # (1, 1, DEC_HIDDEN)
-                    da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
-                    if not config['use_dacontext']:
-                        da_dec_hidden = torch.cat((da_encoder_hidden, utt_context_output), dim=2)
-                else:
-                    da_dec_hidden = utt_context_output
-                    utt_dec_hidden = utt_context_hidden
+            # concat DA hidden and Utterance hidden
+            if config['use_da']:
+                da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
+                utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden),
+                                           dim=2)  # (batch_size, 1, DEC_HIDDEN)
             else:
-                if config['turn']:
-                    da_dec_hidden = torch.cat((da_context_output, turn), dim=2)
-                    utt_dec_hidden = torch.cat((da_context_hidden, turn), dim=2)
-                else:
-                    da_dec_hidden = da_context_output
-                    utt_dec_hidden = da_context_hidden
+                da_dec_hidden = utt_context_output
+                utt_dec_hidden = utt_context_hidden
 
-            # decoder_output = da_decoder(dec_hidden)
-            # decoder_output = decoder_output.squeeze(1)
             # Y_da = Y_da.squeeze(0)
             # da_loss = criterion(decoder_output, Y_da)
-
 
             utt_decoder_hidden = utt_dec_hidden
             for j in range(len(Y_utt[0]) - 1):
@@ -322,7 +269,7 @@ class EncoderDecoderModel(nn.Module):
         return loss.item(), da_context_hidden, utt_context_hidden
 
 
-    def predict(self, X_da, X_utt, turn,
+    def predict(self, X_da, X_utt,
                 da_encoder, da_decoder, da_context, da_context_hidden,
                 utt_encoder, utt_decoder, utt_context, utt_context_hidden,
                 config, EOS_token=1, BOS_token=2):
@@ -330,48 +277,24 @@ class EncoderDecoderModel(nn.Module):
             if config['use_da']:
                 da_encoder_hidden = da_encoder(X_da)
                 da_context_output, da_context_hidden = da_context(da_encoder_hidden, da_context_hidden)
-        
-            if config['turn']:
-                turn = turn.float()
-                turn = turn.unsqueeze(1)  # (batch_size, 1, 1)
 
-            if config['use_utt']:
-                utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
-                utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden) # (1, 1, UTT_HIDDEN)
-                if config['turn']:
-                    if config['use_da']:
-                        da_dec_hidden = torch.cat((da_context_output, utt_encoder_output, turn), dim=2) # (1, 1, DEC_HIDDEN)
-                        utt_dec_hidden = torch.cat((da_context_hidden, utt_encoder_hidden, turn), dim=2)
-                    else:
-                        da_dec_hidden = torch.cat((utt_encoder_output, turn), dim=2)
-                        utt_dec_hidden = torch.cat((utt_encoder_hidden, turn), dim=2)
-                else:
-                    if config['use_da']:
-                        da_dec_hidden = torch.cat((da_context_output, utt_encoder_output), dim=2)
-                        utt_dec_hidden = torch.cat((da_context_hidden, utt_encoder_hidden), dim=2)
-                    else:
-                        da_dec_hidden = utt_encoder_output
-                        utt_dec_hidden = utt_encoder_hidden
+            # Encode Utterance
+            utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
+            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt,
+                                                                 utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
-            elif config['use_uttcontext']:
-                utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
-                utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (1, 1, UTT_HIDDEN)
-                # if config['turn']:
-                #     utt_encoder_hidden = torch.cat((utt_encoder_output, turn), dim=2)
-                utt_context_output, utt_context_hidden = utt_context(utt_encoder_hidden, utt_context_hidden) # (1, 1, UTT_HIDDEN)
-                if config['use_da']:
-                    da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2) # (1, 1, DEC_HIDDEN)
-                    utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden), dim=2)
-                    if not config['use_dacontext']:
-                        da_dec_hidden = torch.cat((da_encoder_hidden, utt_context_output), dim=2)
-                else:
-                    da_dec_hidden = utt_context_output
-                    utt_dec_hidden = utt_context_hidden
+            # Update Context Encoder
+            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output,
+                                                                 utt_context_hidden)  # (batch_size, 1, UTT_HIDDEN)
+
+            # concat DA hidden and Utterance hidden
+            if config['use_da']:
+                da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
+                utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden),
+                                           dim=2)  # (batch_size, 1, DEC_HIDDEN)
             else:
-                if config['turn']:
-                    da_dec_hidden = torch.cat((da_context_output, turn), dim=2)
-                else:
-                    da_dec_hidden = da_context_output
+                da_dec_hidden = utt_context_output
+                utt_dec_hidden = utt_context_hidden
 
             # decoder_output = da_decoder(da_dec_hidden)
 
@@ -406,13 +329,17 @@ class seq2seq(nn.Module):
         super(seq2seq, self).__init__()
         self.device = device
 
-    def forward(self, X, Y, encoder, decoder, step_size, criterion, config):
+    def forward(self, X, Y, encoder, decoder, context, step_size, criterion, config):
         loss = 0
 
         encoder_hidden = encoder.initHidden(step_size, self.device)
-        encoder_hidden, _ = encoder(X, encoder_hidden)
+        encoder_output, encoder_hidden = encoder(X, encoder_hidden)
 
-        decoder_hidden = encoder_hidden
+        context_hidden = context.initHidden(step_size, self.device)
+        context_output, context_hidden = context(encoder_output, context_hidden)
+
+        decoder_hidden = context_hidden
+        print(decoder_hidden)
         for j in range(len(Y[0]) - 1):
             prev_words = Y[:, j].unsqueeze(1)
             preds, decoder_hidden = decoder(prev_words, decoder_hidden)
@@ -423,14 +350,17 @@ class seq2seq(nn.Module):
 
         return loss.item()
 
-    def evaluate(self, X, Y, encoder, decoder, criterion, config):
+    def evaluate(self, X, Y, encoder, decoder, context, criterion, config):
         with torch.no_grad():
             loss = 0
 
             encoder_hidden = encoder.initHidden(1, self.device)
-            encoder_hidden, _ = encoder(X, encoder_hidden)
+            encoder_output, _ = encoder(X, encoder_hidden)
 
-            decoder_hidden = encoder_hidden
+            context_hidden = context.initHidden(1, self.device)
+            context_output, context_hidden = context(encoder_output, context_hidden)
+
+            decoder_hidden = context_hidden
             for j in range(len(Y[0]) - 1):
                 prev_words = Y[:, j].unsqueeze(1)
                 preds, decoder_hidden = decoder(prev_words, decoder_hidden)
@@ -438,12 +368,15 @@ class seq2seq(nn.Module):
                 loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y[:, j + 1])
 
             return loss.item()
-    def predict(self, X, encoder, decoder, config, EOS_token, BOS_token):
+    def predict(self, X, encoder, decoder, context, config, EOS_token, BOS_token):
         with torch.no_grad():
             encoder_hidden = encoder.initHidden(1, self.device)
-            encoder_hidden, _ = encoder(X, encoder_hidden)
+            encoder_output, _ = encoder(X, encoder_hidden)
 
-            decoder_hidden = encoder_hidden
+            context_hidden = context.initHidden(1, self.device)
+            context_output, context_hidden = context(encoder_output, context_hidden)
+            
+            decoder_hidden = context_hidden
             prev_words = torch.tensor([[BOS_token]]).to(self.device)
             pred_seq = []
             for _ in range(config['max_len']):
