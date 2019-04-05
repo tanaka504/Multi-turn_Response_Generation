@@ -53,6 +53,7 @@ class UtteranceEncoder(nn.Module):
         self.hidden_size = utterance_hidden
         self.padding_idx = padding_idx
         self.xe = nn.Embedding(utt_input_size, embed_size)
+        self.xe.weight.requires_grad = False
         self.eh = nn.Linear(embed_size, utterance_hidden)
         self.hh = nn.GRU(utterance_hidden, utterance_hidden, num_layers=1, batch_first=True, bidirectional=True)
 

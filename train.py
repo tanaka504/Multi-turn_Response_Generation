@@ -121,7 +121,7 @@ def train(experiment, fine_tuning=False):
 
     utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>']).to(device)
     utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
-    utt_encoder_opt = optim.Adam(utt_encoder.parameters(), lr=lr)
+    utt_encoder_opt = optim.Adam(list(filter(lambda x: x.requires_grad, utt_encoder.parameters())), lr=lr)
     utt_decoder_opt = optim.Adam(utt_decoder.parameters(), lr=lr)
 
     utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
@@ -130,10 +130,10 @@ def train(experiment, fine_tuning=False):
     if fine_tuning:
         print('fine tuning')
         utt_encoder.load_state_dict(
-            torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_enc_beststate.model')))
+            torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_enc_state80.model')))
         utt_decoder.load_state_dict(
-            torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_dec_beststate.model')))
-        utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_context_beststate.model')))
+            torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_dec_state80.model')))
+        utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'hred_pretrain', 'utt_context_state80.model')))
 
     model = EncoderDecoderModel(device).to(device)
     # model = seq2seq(device).to(device)
@@ -180,8 +180,6 @@ def train(experiment, fine_tuning=False):
             Y_seq = [Y_train[seq_idx] for seq_idx in batch_idx]
             turn_seq = [Tturn[seq_idx] for seq_idx in batch_idx]
             max_conv_len = max(len(s) for s in X_seq)  # seq_len は DA と UTT で共通
-
-            assert max_conv_len == 1
 
             XU_seq = [XU_train[seq_idx] for seq_idx in batch_idx]
             YU_seq = [YU_train[seq_idx] for seq_idx in batch_idx]
@@ -345,6 +343,6 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
 if __name__ == '__main__':
     global args, device
     args, device = parse()
-    # fine_tuning = False if 'pretrain' in args.expr else True
-    fine_tuning = False
+    fine_tuning = False if 'pretrain' in args.expr else True
+    # fine_tuning = False
     train(args.expr, fine_tuning=fine_tuning)
