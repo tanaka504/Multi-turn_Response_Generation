@@ -59,7 +59,6 @@ class DApredictModel(nn.Module):
         decoder_output = decoder_output.squeeze(1) # (batch_size, DA_VOCAB)
         Y_da = Y_da.squeeze()
 
-
         loss += criterion(decoder_output, Y_da)
 
         if last:
@@ -181,7 +180,7 @@ class EncoderDecoderModel(nn.Module):
     def forward(self, X_da, Y_da, X_utt, Y_utt, step_size,
                 da_encoder, da_context, da_decoder, da_context_hidden, 
                 utt_encoder, utt_context, utt_decoder, utt_context_hidden, 
-                criterion, last, config):
+                criterion, da_criterion, last, config):
         loss = 0
 
         # Input Dialogue Act
@@ -204,10 +203,7 @@ class EncoderDecoderModel(nn.Module):
             da_dec_hidden = utt_context_output
             utt_dec_hidden = utt_context_hidden
 
-        # da_decoder_output = da_decoder(da_dec_hidden)
-        # da_decoder_output = da_decoder_output.squeeze(1)
-
-        # Decode
+        # Response Decode
         utt_decoder_hidden = utt_dec_hidden
         for j in range(len(Y_utt[0]) - 1):
             prev_words = Y_utt[:, j].unsqueeze(1)
@@ -215,9 +211,15 @@ class EncoderDecoderModel(nn.Module):
             _, topi = preds.topk(1)
             loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y_utt[:, j + 1])
 
-        Y_da = Y_da.squeeze(0)
+        # DA Decode
+        if config['use_da']:
+            da_decoder_output = da_decoder(da_dec_hidden)
+            da_decoder_output = da_decoder_output.squeeze(1)
+            Y_da = Y_da.squeeze(0)
+            Y_da = Y_da.squeeze(1)
+            da_loss = da_criterion(da_decoder_output, Y_da)
 
-        # da_loss = criterion(da_decoder_output, Y_da)
+            loss = loss + da_loss
 
         if last:
             loss.backward()
@@ -229,7 +231,7 @@ class EncoderDecoderModel(nn.Module):
     def evaluate(self, X_da, Y_da, X_utt, Y_utt,
                  da_encoder, da_decoder, da_context, da_context_hidden,
                  utt_encoder, utt_decoder, utt_context, utt_context_hidden,
-                 criterion, config):
+                 criterion, da_criterion, config):
         with torch.no_grad():
             loss = 0
             if config['use_da']:
@@ -254,9 +256,8 @@ class EncoderDecoderModel(nn.Module):
                 da_dec_hidden = utt_context_output
                 utt_dec_hidden = utt_context_hidden
 
-            # Y_da = Y_da.squeeze(0)
-            # da_loss = criterion(decoder_output, Y_da)
 
+            # Response Decode
             utt_decoder_hidden = utt_dec_hidden
             for j in range(len(Y_utt[0]) - 1):
                 prev_words = Y_utt[:, j].unsqueeze(1)
@@ -264,7 +265,14 @@ class EncoderDecoderModel(nn.Module):
                 _, topi = preds.topk(1)
                 loss += criterion(preds.view(-1, config['UTT_MAX_VOCAB']), Y_utt[:, j + 1])
 
-            # loss = loss + da_loss
+            # DA Decode
+            if config['use_da']:
+                da_decoder_output = da_decoder(da_dec_hidden)
+                da_decoder_output = da_decoder_output.squeeze(1)
+                Y_da = Y_da.squeeze(0)
+                da_loss = da_criterion(da_decoder_output, Y_da)
+
+                loss = loss + da_loss
 
         return loss.item(), da_context_hidden, utt_context_hidden
 
@@ -296,7 +304,8 @@ class EncoderDecoderModel(nn.Module):
                 da_dec_hidden = utt_context_output
                 utt_dec_hidden = utt_context_hidden
 
-            # decoder_output = da_decoder(da_dec_hidden)
+            if config['use_da']:
+                decoder_output = da_decoder(da_dec_hidden)
 
             utt_decoder_hidden = utt_dec_hidden
             prev_words = torch.tensor([[BOS_token]]).to(self.device)
