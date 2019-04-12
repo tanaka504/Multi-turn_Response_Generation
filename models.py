@@ -3,6 +3,8 @@ import torch.nn as nn
 from nn_blocks import *
 from torch import optim
 import time
+from queue import PriorityQueue
+import operator
 
 
 class DApredictModel(nn.Module):
@@ -219,7 +221,7 @@ class EncoderDecoderModel(nn.Module):
             Y_da = Y_da.squeeze(1)
             da_loss = da_criterion(da_decoder_output, Y_da)
 
-            loss = loss + da_loss
+            loss = (1 - config['alpha']) * loss + config['alpha'] * da_loss
 
         if last:
             loss.backward()
@@ -272,7 +274,7 @@ class EncoderDecoderModel(nn.Module):
                 Y_da = Y_da.squeeze(0)
                 da_loss = da_criterion(da_decoder_output, Y_da)
 
-                loss = loss + da_loss
+                loss = (1 - config['alpha']) * loss + config['alpha'] * da_loss
 
         return loss.item(), da_context_hidden, utt_context_hidden
 
@@ -311,9 +313,10 @@ class EncoderDecoderModel(nn.Module):
             prev_words = torch.tensor([[BOS_token]]).to(self.device)
 
             if config['beam_size']:
-                pred_seq, utt_decoder_hidden = self._beam_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config)
+                pred_seq, utt_decoder_hidden = self._beam_decode(decoder=utt_decoder, decoder_hiddens=utt_decoder_hidden, BOS_token=BOS_token, EOS_token=EOS_token, config=config)
+                pred_seq = pred_seq[0]
             else:
-                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config)
+                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config=config)
 
         return pred_seq, da_context_hidden, utt_context_hidden
 
@@ -328,9 +331,78 @@ class EncoderDecoderModel(nn.Module):
                 break
         return pred_seq, decoder_hidden
 
-    def _beam_decode(self, prev_words, decoder, decoder_hidden, EOS_token, config):
-        pred_seq = []
+    def _beam_decode(self, decoder, decoder_hiddens, BOS_token, EOS_token, config, encoder_outputs=None):
+        decoded_batch = []
+        topk = 1
+        # batch対応
+        for idx in range(decoder_hiddens.size(1)):
+            if isinstance(decoder_hiddens, tuple):
+                decoder_hidden = (decoder_hiddens[0][:, idx, :].unsqueeze(0), decoder_hiddens[1][idx, :, :].unsqueeze(0))
+            else:
+                decoder_hidden = decoder_hiddens[:, idx, :].unsqueeze(0)
 
+            # encoder_output = encoder_outputs[idx, :, :].unsqueeze(1)
+
+            decoder_input = torch.tensor([[BOS_token]]).to(self.device)
+
+            endnodes = []
+            number_required = min((topk + 1), (topk - len(endnodes)))
+
+            node = BeamNode(hidden=decoder_hidden, previousNode=None, wordId=decoder_input, logProb=0, length=1)
+            nodes = PriorityQueue()
+
+            nodes.put((-node.eval(), node))
+            qsize = 1
+
+            while 1:
+                if qsize > 2000: break
+
+                score, n = nodes.get()
+                decoder_input = n.wordid
+                decoder_hidden = n.hidden
+
+                if n.wordid.item() == EOS_token and n.prevNode != None:
+                    endnodes.append((score, n))
+
+                    if len(endnodes) >= number_required:
+                        break
+                    else:
+                        continue
+
+                decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
+
+                log_prob, indexes = torch.topk(decoder_output, config['beam_size'])
+                nextnodes = []
+
+                for new_k in range(config['beam_size']):
+                    decoded_t = indexes[0][new_k].view(1, -1)
+                    log_p = log_prob[0][new_k].item()
+
+                    node = BeamNode(hidden=decoder_hidden, previousNode=n, wordId=decoded_t, logProb=n.logp + log_p, length=n.length + 1)
+                    score = -node.eval()
+                    nextnodes.append((score, node))
+
+                for i in range(len(nextnodes)):
+                    score, nn = nextnodes[i]
+                    nodes.put((score, nn))
+                qsize += len(nextnodes) - 1
+
+            # choose nbest paths, back trace them
+            if len(endnodes) == 0:
+                endnodes = [nodes.get() for _ in range(topk)]
+
+            pred_seq = []
+            for score, n in sorted(endnodes, key=operator.itemgetter(0)):
+                seq = []
+                seq.append(n.wordid)
+
+                while n.prevNode != None:
+                    n = n.prevNode
+                    seq.append(n.wordid)
+
+                seq = seq[::-1]
+                pred_seq.append([word.item() for word in seq])
+            decoded_batch.append(pred_seq)
         return pred_seq, decoder_hidden
 
 class seq2seq(nn.Module):
@@ -348,7 +420,6 @@ class seq2seq(nn.Module):
         context_output, context_hidden = context(encoder_output, context_hidden)
 
         decoder_hidden = context_hidden
-        print(decoder_hidden)
         for j in range(len(Y[0]) - 1):
             prev_words = Y[:, j].unsqueeze(1)
             preds, decoder_hidden = decoder(prev_words, decoder_hidden)
