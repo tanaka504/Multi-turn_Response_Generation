@@ -45,7 +45,7 @@ def interpreter(experiment):
     utt_context = UtteranceContextEncoder(utterance_hidden_size=config['UTT_CONTEXT']).to(device)
     utt_context.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_context_state{}.model'.format(args.epoch))))
 
-    model = EncoderDecoderModel(device).to(device)
+    model = EncoderDecoderModel(da_vocab=da_vocab, utt_vocab=utt_vocab, device=device).to(device)
 
     da_context_hidden = context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
@@ -76,7 +76,7 @@ def interpreter(experiment):
                                                                       da_context_hidden=da_context_hidden,
                                                                       utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                                       utt_context_hidden=utt_context_hidden,
-                                                                      config=config, EOS_token=utt_vocab.word2id['<EOS>'], BOS_token=utt_vocab.word2id['<BOS>'])
+                                                                      config=config)
         # pred_seq = model.predict(X=XU_tensor, encoder=utt_encoder, decoder=utt_decoder, context=utt_context, config=config, EOS_token=utt_vocab.word2id['<EOS>'], BOS_token=utt_vocab.word2id['<BOS>'])
         print(' '.join([utt_vocab.id2word[wid] for wid in pred_seq]))
 

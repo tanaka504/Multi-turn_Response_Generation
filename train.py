@@ -119,8 +119,8 @@ def train(experiment, fine_tuning=False):
         da_decoder_opt = optim.Adam(da_decoder.parameters(), lr=lr)
 
         if fine_tuning:
-            da_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'enc_beststate.model')))
-            da_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'context_beststate.model')))
+            da_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'enc_state{}.model'.format(args.epoch))))
+            da_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'context_state{}.model'.format(args.epoch))))
     else:
         da_encoder = None
         da_context = None
@@ -141,14 +141,14 @@ def train(experiment, fine_tuning=False):
             torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_enc_state{}.model'.format(args.epoch))))
         utt_decoder.load_state_dict(
             torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_dec_state{}.model'.format(args.epoch))))
-        utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_context_state80.model')))
+        utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_context_state{}.model'.format(args.epoch))))
 
-    model = EncoderDecoderModel(device).to(device)
+    model = EncoderDecoderModel(da_vocab=da_vocab, utt_vocab=utt_vocab, device=device).to(device)
     print('Success construct model...')
 
 
-    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'])
-    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'])
+    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'], reduce=False)
+    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'], reduce=False)
 
     print('---start training---')
 
@@ -303,8 +303,8 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
 
     da_context_hidden = da_context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
-    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'])
-    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'])
+    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'], reduce=False)
+    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'], reduce=False)
     total_loss = 0
 
     for seq_idx in range(len(X_valid)):

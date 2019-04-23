@@ -12,6 +12,7 @@ class DApredictModel(nn.Module):
         super(DApredictModel, self).__init__()
         self.device = device
 
+
     def forward(self, X_da, Y_da, X_utt, Y_utt, step_size, turn,
                 da_encoder, da_decoder, da_context, da_context_hidden,
                 utt_encoder, utt_decoder, utt_context, utt_context_hidden,
@@ -175,9 +176,11 @@ class DApredictModel(nn.Module):
 
 
 class EncoderDecoderModel(nn.Module):
-    def __init__(self, device):
+    def __init__(self, da_vocab, utt_vocab, device):
         super(EncoderDecoderModel, self).__init__()
         self.device = device
+        self.da_vocab = da_vocab
+        self.utt_vocab = utt_vocab
 
     def forward(self, X_da, Y_da, X_utt, Y_utt, step_size,
                 da_encoder, da_context, da_decoder, da_context_hidden, 
@@ -221,7 +224,7 @@ class EncoderDecoderModel(nn.Module):
             Y_da = Y_da.squeeze(1)
             da_loss = da_criterion(da_decoder_output, Y_da)
 
-            loss = (1 - config['alpha']) * loss + config['alpha'] * da_loss
+            loss = self._calc_loss(utt_loss=loss, da_loss=da_loss, true_y=Y_da, config=config)
 
         if last:
             loss.backward()
@@ -242,18 +245,15 @@ class EncoderDecoderModel(nn.Module):
 
             # Encode Utterance
             utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
-            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt,
-                                                                 utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
+            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
             # Update Context Encoder
-            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output,
-                                                                 utt_context_hidden)  # (batch_size, 1, UTT_HIDDEN)
+            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output, utt_context_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
             # concat DA hidden and Utterance hidden
             if config['use_da']:
                 da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
-                utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden),
-                                           dim=2)  # (batch_size, 1, DEC_HIDDEN)
+                utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden), dim=2)  # (batch_size, 1, DEC_HIDDEN)
             else:
                 da_dec_hidden = utt_context_output
                 utt_dec_hidden = utt_context_hidden
@@ -274,7 +274,7 @@ class EncoderDecoderModel(nn.Module):
                 Y_da = Y_da.squeeze(0)
                 da_loss = da_criterion(da_decoder_output, Y_da)
 
-                loss = (1 - config['alpha']) * loss + config['alpha'] * da_loss
+                loss = self._calc_loss(utt_loss=loss, da_loss=da_loss, true_y=Y_da, config=config)
 
         return loss.item(), da_context_hidden, utt_context_hidden
 
@@ -282,7 +282,7 @@ class EncoderDecoderModel(nn.Module):
     def predict(self, X_da, X_utt,
                 da_encoder, da_decoder, da_context, da_context_hidden,
                 utt_encoder, utt_decoder, utt_context, utt_context_hidden,
-                config, EOS_token=1, BOS_token=2):
+                config):
         with torch.no_grad():
             if config['use_da']:
                 da_encoder_hidden = da_encoder(X_da)
@@ -290,18 +290,15 @@ class EncoderDecoderModel(nn.Module):
 
             # Encode Utterance
             utt_encoder_hidden = utt_encoder.initHidden(1, self.device)
-            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt,
-                                                                 utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
+            utt_encoder_output, utt_encoder_hidden = utt_encoder(X_utt, utt_encoder_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
             # Update Context Encoder
-            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output,
-                                                                 utt_context_hidden)  # (batch_size, 1, UTT_HIDDEN)
+            utt_context_output, utt_context_hidden = utt_context(utt_encoder_output, utt_context_hidden)  # (batch_size, 1, UTT_HIDDEN)
 
             # concat DA hidden and Utterance hidden
             if config['use_da']:
                 da_dec_hidden = torch.cat((da_context_output, utt_context_output), dim=2)
-                utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden),
-                                           dim=2)  # (batch_size, 1, DEC_HIDDEN)
+                utt_dec_hidden = torch.cat((da_context_hidden, utt_context_hidden), dim=2)  # (batch_size, 1, DEC_HIDDEN)
             else:
                 da_dec_hidden = utt_context_output
                 utt_dec_hidden = utt_context_hidden
@@ -310,17 +307,25 @@ class EncoderDecoderModel(nn.Module):
                 decoder_output = da_decoder(da_dec_hidden)
 
             utt_decoder_hidden = utt_dec_hidden
-            prev_words = torch.tensor([[BOS_token]]).to(self.device)
+            prev_words = torch.tensor([[self.utt_vocab.word2id['<EOS>']]]).to(self.device)
 
             if config['beam_size']:
-                pred_seq, utt_decoder_hidden = self._beam_decode(decoder=utt_decoder, decoder_hiddens=utt_decoder_hidden, BOS_token=BOS_token, EOS_token=EOS_token, config=config)
+                pred_seq, utt_decoder_hidden = self._beam_decode(decoder=utt_decoder, decoder_hiddens=utt_decoder_hidden, config=config)
                 pred_seq = pred_seq[0]
             else:
-                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, utt_decoder, utt_decoder_hidden, EOS_token, config=config)
+                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, utt_decoder, utt_decoder_hidden, config=config)
 
         return pred_seq, da_context_hidden, utt_context_hidden
 
-    def _greedy_decode(self, prev_words, decoder, decoder_hidden, EOS_token, config):
+    def _calc_loss(self, utt_loss, da_loss, true_y, config):
+        for idx, y in enumerate(true_y):
+            if y == self.da_vocab.word2id['<Uninterpretable>']:
+                da_loss[idx] = da_loss[idx] * 10
+        alpha = config['alpha']
+        return (1 - alpha) * utt_loss.mean() + alpha * da_loss.mean()
+
+    def _greedy_decode(self, prev_words, decoder, decoder_hidden, config):
+        EOS_token = self.utt_vocab.word2id['<EOS>']
         pred_seq = []
         for _ in range(config['max_len']):
             preds, decoder_hidden = decoder(prev_words, decoder_hidden)
@@ -331,7 +336,9 @@ class EncoderDecoderModel(nn.Module):
                 break
         return pred_seq, decoder_hidden
 
-    def _beam_decode(self, decoder, decoder_hiddens, BOS_token, EOS_token, config, encoder_outputs=None):
+    def _beam_decode(self, decoder, decoder_hiddens, config, encoder_outputs=None):
+        BOS_token = self.utt_vocab.word2id['<BOS>']
+        EOS_token = self.utt_vocab.word2id['<EOS>']
         decoded_batch = []
         topk = 1
         # batch対応
@@ -404,6 +411,7 @@ class EncoderDecoderModel(nn.Module):
                 pred_seq.append([word.item() for word in seq])
             decoded_batch.append(pred_seq)
         return pred_seq, decoder_hidden
+
 
 class seq2seq(nn.Module):
     def __init__(self, device):
