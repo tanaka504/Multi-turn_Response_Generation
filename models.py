@@ -5,7 +5,7 @@ from torch import optim
 import time
 from queue import PriorityQueue
 import operator
-
+from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 
 class DApredictModel(nn.Module):
     def __init__(self, device):
@@ -315,12 +315,12 @@ class EncoderDecoderModel(nn.Module):
             else:
                 pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, utt_decoder, utt_decoder_hidden, config=config)
 
-        return pred_seq, da_context_hidden, utt_context_hidden
+        return pred_seq, da_context_hidden, utt_context_hidden, decoder_output
 
     def _calc_loss(self, utt_loss, da_loss, true_y, config):
         for idx, y in enumerate(true_y):
             if y == self.da_vocab.word2id['<Uninterpretable>']:
-                da_loss[idx] = da_loss[idx] * 10
+                da_loss[idx] = da_loss[idx] / 1000000000
         alpha = config['alpha']
         return (1 - alpha) * utt_loss.mean() + alpha * da_loss.mean()
 
@@ -411,6 +411,10 @@ class EncoderDecoderModel(nn.Module):
                 pred_seq.append([word.item() for word in seq])
             decoded_batch.append(pred_seq)
         return pred_seq, decoder_hidden
+
+    def calc_bleu(self, ref, hyp):
+        cc = SmoothingFunction()
+        return sentence_bleu([ref], hyp)
 
 
 class seq2seq(nn.Module):

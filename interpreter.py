@@ -11,6 +11,7 @@ import argparse
 from pprint import pprint
 import numpy as np
 import pickle
+import random
 
 
 def interpreter(experiment):
@@ -71,14 +72,16 @@ def interpreter(experiment):
         XU_tensor = torch.tensor([XU_seq]).to(device)
 
 
-        pred_seq, da_context_hidden, utt_context_hidden = model.predict(X_da=X_tensor, X_utt=XU_tensor,
+        pred_seq, da_context_hidden, utt_context_hidden, decoder_output = model.predict(X_da=X_tensor, X_utt=XU_tensor,
                                                                       da_encoder=encoder, da_decoder=decoder, da_context=context,
                                                                       da_context_hidden=da_context_hidden,
                                                                       utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
                                                                       utt_context_hidden=utt_context_hidden,
                                                                       config=config)
-        # pred_seq = model.predict(X=XU_tensor, encoder=utt_encoder, decoder=utt_decoder, context=utt_context, config=config, EOS_token=utt_vocab.word2id['<EOS>'], BOS_token=utt_vocab.word2id['<BOS>'])
-        print(' '.join([utt_vocab.id2word[wid] for wid in pred_seq]))
+        pred_idx = torch.argmax(decoder_output)
+
+
+        print('{} ({})'.format(' '.join([utt_vocab.id2word[wid] for wid in pred_seq]), da_vocab.id2word[pred_idx.item()]))
 
         print()
 

@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import torch
 from nltk import tokenize
 import pickle
+import pandas as pd
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 EOS_token = '<EOS>'
 BOS_token = '<BOS>'
@@ -194,6 +197,24 @@ def makefig(X, Y, xlabel, ylabel, imgname):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.savefig(os.path.join('./data/images/', imgname))
+
+def save_cmx(y_true, y_pred, expr):
+    fontsize = 50
+    labels = sorted(list(set(y_true)))
+    cmx_data = confusion_matrix(y_true, y_pred, labels=labels)
+
+    df_cmx = pd.DataFrame(cmx_data, index=labels, columns=labels)
+
+    plt.figure(figsize=(40, 30))
+    plt.rcParams['font.size'] = fontsize
+    heatmap = sns.heatmap(df_cmx, annot=True, fmt='d', cmap='Blues')
+    heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=fontsize)
+    heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=fontsize)
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.tight_layout()
+    plt.savefig('./data/images/cmx_{}.png'.format(expr))
+
 
 if __name__ == '__main__':
     create_traindata()
