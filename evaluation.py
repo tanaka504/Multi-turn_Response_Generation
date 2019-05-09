@@ -51,7 +51,7 @@ def evaluate(experiment):
 
     utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
     utt_decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_dec_state{}.model'.format(args.epoch))))
-    model = EncoderDecoderModel(device).to(device)
+    model = EncoderDecoderModel(da_vocab=da_vocab, utt_vocab=utt_vocab, device=device).to(device)
 
     da_context_hidden = context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
@@ -71,7 +71,7 @@ def evaluate(experiment):
 
         for i in range(0, len(X_seq)):
             X_tensor = torch.tensor([[X_seq[i]]]).to(device)
-            XU_tensor = torch.tensor([[XU_seq[i]]]).to(device)
+            XU_tensor = torch.tensor([XU_seq[i]]).to(device)
 
             pred_seq, da_context_hidden, utt_context_hidden, decoder_output = model.predict(X_da=X_tensor, X_utt=XU_tensor,
                                                            da_encoder=encoder, da_decoder=decoder, da_context=context,
@@ -83,15 +83,14 @@ def evaluate(experiment):
         pred_idx = torch.argmax(decoder_output)
         preds.append(pred_idx)
         trues.append(Y_tensor)
-        bleus.append(model.calc_bleu(YU_tensor, pred_seq))
-        hyps.append(' '.join([utt_vocab.id2word[wid] for wid in pred_seq]))
-        refs.append(' '.join([utt_vocab.id2word[wid] for wid in YU_tensor]))
+        hyps.append(pred_seq)
+        refs.append(YU_tensor)
 
     result = {'DA_preds': preds,
               'DA_trues': trues,
-              'BLEUs': bleus,
-              'hyps': hyps,
-              'refs': refs}
+              'BLEU': model.calc_bleu(refs=refs, hyps=hyps),
+              'hyps': [' '.join([utt_vocab.id2word[wid] for wid in hyp]) for hyp in hyps],
+              'refs': [' '.join([utt_vocab.id2word[wid] for wid in ref]) for ref in refs]}
 
     return result
 
@@ -125,4 +124,7 @@ if __name__ == '__main__':
     global args, device
     args, device = parse()
     result = evaluate(args.expr)
-
+    with open('./data/images/results_{}.pkl', 'wb') as f:
+        pickle.dump(result, f)
+    calc_average(y_true=result['DA_trues'], y_pred=result['DA_preds'])
+    print(result['BLEU'])

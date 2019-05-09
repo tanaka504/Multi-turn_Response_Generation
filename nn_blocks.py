@@ -126,3 +126,6 @@ class BeamNode(object):
     def eval(self, alpha=1.0):
         reward = 0
         return self.logp / float(self.length - 1 + 1e-6) + alpha * reward
+
+    def __lt__(self, other):
+        return self.eval() < other.eval()

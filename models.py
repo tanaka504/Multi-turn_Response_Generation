@@ -5,7 +5,7 @@ from torch import optim
 import time
 from queue import PriorityQueue
 import operator
-from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
+from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
 
 class DApredictModel(nn.Module):
     def __init__(self, device):
@@ -412,9 +412,9 @@ class EncoderDecoderModel(nn.Module):
             decoded_batch.append(pred_seq)
         return pred_seq, decoder_hidden
 
-    def calc_bleu(self, ref, hyp):
+    def calc_bleu(self, refs, hyps):
         cc = SmoothingFunction()
-        return sentence_bleu([ref], hyp)
+        return corpus_bleu([[ref] for ref in refs], hyps)
 
 
 class seq2seq(nn.Module):
