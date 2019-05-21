@@ -113,7 +113,7 @@ class UtteranceDecoder(nn.Module):
         h = F.tanh(self.eh(self.ye(Y)))
         output, hidden = self.hh(h, hidden)
         y_dist = self.ey(torch.tanh(self.he(output.squeeze(1))))
-        return y_dist, hidden
+        return y_dist, hidden, output
 
 class BeamNode(object):
     def __init__(self, hidden, previousNode, wordId, logProb, length):

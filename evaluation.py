@@ -51,14 +51,16 @@ def evaluate(experiment):
 
     utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
     utt_decoder.load_state_dict(torch.load(os.path.join(config['log_dir'], 'utt_dec_state{}.model'.format(args.epoch))))
-    model = EncoderDecoderModel(da_vocab=da_vocab, utt_vocab=utt_vocab, device=device).to(device)
+    model = EncoderDecoderModel(da_vocab=da_vocab, utt_vocab=utt_vocab, device=device,
+                                da_encoder=encoder, utt_encoder=utt_encoder,
+                                da_context=context, utt_context=utt_context,
+                                da_decoder=decoder, utt_decoder=utt_decoder, config=config).to(device)
 
     da_context_hidden = context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
 
     preds = []
     trues = []
-    bleus = []
     hyps, refs = [], []
 
     for seq_idx in range(0, len(X_test)):
@@ -74,17 +76,16 @@ def evaluate(experiment):
             XU_tensor = torch.tensor([XU_seq[i]]).to(device)
 
             pred_seq, da_context_hidden, utt_context_hidden, decoder_output = model.predict(X_da=X_tensor, X_utt=XU_tensor,
-                                                           da_encoder=encoder, da_decoder=decoder, da_context=context,
-                                                           da_context_hidden=da_context_hidden,
-                                                           utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
-                                                           utt_context_hidden=utt_context_hidden, config=config)
+                                                           da_context_hidden=da_context_hidden, utt_context_hidden=utt_context_hidden)
+
         Y_tensor = Y_seq[-1]
         YU_tensor = YU_seq[-1]
-        pred_idx = torch.argmax(decoder_output)
-        preds.append(pred_idx)
-        trues.append(Y_tensor)
+        pred_idx = torch.argmax(decoder_output).item() if config['use_da'] else None
+        preds.append(da_vocab.id2word[pred_idx])
+        trues.append(da_vocab.id2word[Y_tensor])
         hyps.append(pred_seq)
         refs.append(YU_tensor)
+    print()
 
     result = {'DA_preds': preds,
               'DA_trues': trues,
@@ -124,7 +125,13 @@ if __name__ == '__main__':
     global args, device
     args, device = parse()
     result = evaluate(args.expr)
-    with open('./data/images/results_{}.pkl', 'wb') as f:
+    with open('./data/images/results_{}.pkl'.format(args.expr), 'wb') as f:
         pickle.dump(result, f)
-    calc_average(y_true=result['DA_trues'], y_pred=result['DA_preds'])
-    print(result['BLEU'])
+    # calc_average(y_true=result['DA_trues'], y_pred=result['DA_preds'])
+    print('BLEU score: ', result['BLEU'])
+    df = pd.DataFrame({'DA_pred': result['DA_preds'],
+                       'DA_true': result['DA_trues'],
+                       'hyp': [len(hyp.split(' ')) - 2 for hyp in result['hyps']],
+                       'ref': [len(ref.split(' ')) - 2 for ref in result['refs']]})
+    df.sort_values(by=['hyp', 'ref'], ascending=False)
+    print({tag : sum(df[df['DA_true'] == tag]['ref']) / len(df[df['DA_true'] == tag]['ref']) for tag in set(df['DA_pred'])})

@@ -83,9 +83,11 @@ class utt_Vocab:
             self.construct()
         else:
             self.load()
+        if config['merge_dic']:
+            self._add_tags()
 
     def construct(self):
-        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<ConvPAD>': 4}
+        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<TAG>': 4}
         vocab_count = {}
 
         for post, cmnt in zip(self.posts, self.cmnts):
@@ -123,6 +125,13 @@ class utt_Vocab:
     def load(self):
         self.word2id = pickle.load(open(os.path.join(self.config['log_root'], 'utterance_vocab.dict'), 'rb'))
         self.id2word = {v: k for k, v in self.word2id.items()}
+
+    def _add_tags(self):
+        tags = ['<Uninterpretable>', '<Statement>', '<Question>',
+               '<Directive>', '<Propose>', '<Greeting>',
+               '<Apology>', '<Agreement>', '<Understanding>', '<Other>']
+        for idx, tag in enumerate(tags, 1):
+            self.word2id[tag] = -idx
 
 def create_traindata(config):
     files = [f for f in os.listdir(config['train_path']) if file_pattern.match(f)]
