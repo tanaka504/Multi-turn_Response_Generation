@@ -87,17 +87,10 @@ def train(experiment, fine_tuning=False):
     X_train, Y_train, X_valid, Y_valid = minimize(X_train), minimize(Y_train), minimize(X_valid), minimize(Y_valid)
     XU_train, YU_train, XU_valid, YU_valid = minimize(XU_train), minimize(YU_train), minimize(XU_valid), minimize(YU_valid)
 
-
     with open('./data/minidata_hred.pkl', 'wb') as f:
         pickle.dump([(x, y) for x, y in zip(XU_train, YU_train)], f)
 
     # Tokenize sequences
-    # if config['merge_dic']:
-    #     X_train = [[utt_vocab.word2id[token] for token in sentence] for sentence in X_train]
-    #     Y_train = [[utt_vocab.word2id[token] for token in sentence] for sentence in Y_train]
-    #     X_valid = [[utt_vocab.word2id[token] for token in sentence] for sentence in X_valid]
-    #     Y_valid = [[utt_vocab.word2id[token] for token in sentence] for sentence in Y_valid]
-    # else:
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
     X_valid, Y_valid = da_vocab.tokenize(X_valid, Y_valid)
 

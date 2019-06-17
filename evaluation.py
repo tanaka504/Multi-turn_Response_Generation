@@ -77,11 +77,15 @@ def evaluate(experiment):
 
             pred_seq, da_context_hidden, utt_context_hidden, decoder_output = model.predict(X_da=X_tensor, X_utt=XU_tensor,
                                                            da_context_hidden=da_context_hidden, utt_context_hidden=utt_context_hidden)
-
         Y_tensor = Y_seq[-1]
         YU_tensor = YU_seq[-1]
-        pred_idx = torch.argmax(decoder_output).item() if config['use_da'] else None
-        preds.append(da_vocab.id2word[pred_idx])
+        if config['use_da']:
+            pred_idx = torch.argmax(decoder_output).item()
+            preds.append(da_vocab.id2word[pred_idx])
+        else:
+            preds.append('None')
+        if not pred_seq[-1] == utt_vocab.word2id['<EOS>']:
+            pred_seq.append(utt_vocab.word2id['<EOS>'])
         trues.append(da_vocab.id2word[Y_tensor])
         hyps.append(pred_seq)
         refs.append(YU_tensor)
@@ -134,4 +138,4 @@ if __name__ == '__main__':
                        'hyp': [len(hyp.split(' ')) - 2 for hyp in result['hyps']],
                        'ref': [len(ref.split(' ')) - 2 for ref in result['refs']]})
     df.sort_values(by=['hyp', 'ref'], ascending=False)
-    print({tag : sum(df[df['DA_true'] == tag]['ref']) / len(df[df['DA_true'] == tag]['ref']) for tag in set(df['DA_pred'])})
+    # print({tag : sum(df[df['DA_pred'] == tag]['hyp']) / len(df[df['DA_pred'] == tag]['hyp']) for tag in set(df['DA_pred'])})

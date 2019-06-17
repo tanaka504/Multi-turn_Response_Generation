@@ -352,6 +352,7 @@ class EncoderDecoderModel(nn.Module):
             prev_words = torch.tensor([[topi]]).to(self.device)
             if topi == EOS_token:
                 break
+        if not pred_seq[-1] == EOS_token: pred_seq.append(EOS_token)
         return pred_seq, decoder_hidden
 
 
@@ -428,9 +429,10 @@ class EncoderDecoderModel(nn.Module):
 
                 seq = seq[::-1]
                 pred_seq.append([word.item() for word in seq])
+            if not pred_seq[-1] == EOS_token: pred_seq.append(EOS_token)
             decoded_batch.append(pred_seq)
-        return pred_seq, decoder_hidden
 
+        return decoded_batch[0], decoder_hidden
 
     def calc_bleu(self, refs, hyps):
         return corpus_bleu([[ref] for ref in refs], hyps)
