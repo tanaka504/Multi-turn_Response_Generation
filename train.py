@@ -81,11 +81,11 @@ def train(experiment, fine_tuning=False):
         utt_vocab = utt_Vocab(config, XU_train + XU_valid, YU_train + YU_valid)
         da_vocab.save()
         utt_vocab.save()
+
     print('Finish create vocab dic...')
 
     X_train, Y_train, X_valid, Y_valid = minimize(X_train), minimize(Y_train), minimize(X_valid), minimize(Y_valid)
     XU_train, YU_train, XU_valid, YU_valid = minimize(XU_train), minimize(YU_train), minimize(XU_valid), minimize(YU_valid)
-
 
     with open('./data/minidata_hred.pkl', 'wb') as f:
         pickle.dump([(x, y) for x, y in zip(XU_train, YU_train)], f)
@@ -108,9 +108,13 @@ def train(experiment, fine_tuning=False):
     print_total_loss = 0
     plot_total_loss = 0
 
+    pretrain_model = 'hred_pretrain' if 'hred' in experiment else 'pretrain'
+    pretrain_model = 'pretrain2' if experiment == 'proposal2' else pretrain_model
+
     # constract models
     if config['use_da']:
-        da_encoder = DAEncoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'], da_hidden=config['DA_HIDDEN']).to(device)
+        da_vocab_size = len(da_vocab.word2id)
+        da_encoder = DAEncoder(da_input_size=da_vocab_size, da_embed_size=config['DA_EMBED'], da_hidden=config['DA_HIDDEN']).to(device)
         da_context = DAContextEncoder(da_hidden=config['DA_HIDDEN']).to(device)
         da_decoder = DADecoder(da_input_size=len(da_vocab.word2id), da_embed_size=config['DA_EMBED'],
                                da_hidden=config['DEC_HIDDEN']).to(device)
@@ -119,8 +123,8 @@ def train(experiment, fine_tuning=False):
         da_decoder_opt = optim.Adam(da_decoder.parameters(), lr=lr)
 
         if fine_tuning:
-            da_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'enc_beststate.model')))
-            da_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'context_beststate.model')))
+            da_encoder.load_state_dict(torch.load(os.path.join(config['log_root'], pretrain_model, 'enc_state{}.model'.format(args.epoch))))
+            da_context.load_state_dict(torch.load(os.path.join(config['log_root'], pretrain_model, 'context_state{}.model'.format(args.epoch))))
     else:
         da_encoder = None
         da_context = None
@@ -138,17 +142,20 @@ def train(experiment, fine_tuning=False):
     if fine_tuning:
         print('fine tuning')
         utt_encoder.load_state_dict(
-            torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_enc_state{}.model'.format(args.epoch))))
+            torch.load(os.path.join(config['log_root'], pretrain_model, 'utt_enc_state{}.model'.format(args.epoch))))
         utt_decoder.load_state_dict(
-            torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_dec_state{}.model'.format(args.epoch))))
-        utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], 'pretrain', 'utt_context_state80.model')))
+            torch.load(os.path.join(config['log_root'], pretrain_model, 'utt_dec_state{}.model'.format(args.epoch))))
+        utt_context.load_state_dict(torch.load(os.path.join(config['log_root'], pretrain_model, 'utt_context_state{}.model'.format(args.epoch))))
 
-    model = EncoderDecoderModel(device).to(device)
+    model = EncoderDecoderModel(da_vocab=da_vocab, utt_vocab=utt_vocab, device=device,
+                                da_encoder=da_encoder, utt_encoder=utt_encoder,
+                                da_context=da_context, utt_context=utt_context,
+                                da_decoder=da_decoder, utt_decoder=utt_decoder, config=config).to(device)
     print('Success construct model...')
 
 
-    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'])
-    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'])
+    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'], reduce=False)
+    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'], reduce=False)
 
     print('---start training---')
 
@@ -216,12 +223,9 @@ def train(experiment, fine_tuning=False):
                 last = True if i == max_conv_len - 1 else False
     
                 if last:
-                    loss, context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor,step_size=step_size,
-                                                         da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
-                                                         da_context_hidden=context_hidden,
-                                                         utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
-                                                         utt_context_hidden=utt_context_hidden,
-                                                         criterion=criterion, da_criterion=da_criterion, last=last, config=config)
+                    loss, context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor, step_size=step_size,
+                                                         da_context_hidden=context_hidden, utt_context_hidden=utt_context_hidden,
+                                                         criterion=criterion, da_criterion=da_criterion, last=last)
                     print_total_loss += loss
                     plot_total_loss += loss
 
@@ -235,11 +239,8 @@ def train(experiment, fine_tuning=False):
 
                 else:
                     loss, context_hidden, utt_context_hidden = model.forward(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor, step_size=step_size,
-                                                   da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
-                                                   da_context_hidden=context_hidden,
-                                                   utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
-                                                   utt_context_hidden=utt_context_hidden,
-                                                   criterion=criterion, da_criterion=da_criterion, last=last, config=config)
+                                                   da_context_hidden=context_hidden, utt_context_hidden=utt_context_hidden,
+                                                   criterion=criterion, da_criterion=da_criterion, last=last)
 
 
             k += step_size
@@ -303,8 +304,8 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
 
     da_context_hidden = da_context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
-    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'])
-    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'])
+    criterion = nn.CrossEntropyLoss(ignore_index=utt_vocab.word2id['<UttPAD>'], reduce=False)
+    da_criterion = nn.CrossEntropyLoss(ignore_index=da_vocab.word2id['<PAD>'], reduce=False)
     total_loss = 0
 
     for seq_idx in range(len(X_valid)):
@@ -323,11 +324,8 @@ def validation(X_valid, Y_valid, XU_valid, YU_valid, model, turn,
             YU_tensor = torch.tensor([YU_seq[i]]).to(device)
 
             loss, context_hidden, utt_context_hidden = model.evaluate(X_da=X_tensor, Y_da=Y_tensor, X_utt=XU_tensor, Y_utt=YU_tensor,
-                                                  da_encoder=da_encoder, da_decoder=da_decoder, da_context=da_context,
-                                                  da_context_hidden=da_context_hidden,
-                                                  utt_encoder=utt_encoder, utt_decoder=utt_decoder, utt_context=utt_context,
-                                                  utt_context_hidden=utt_context_hidden,
-                                                  criterion=criterion, da_criterion=da_criterion, config=config)
+                                                  da_context_hidden=da_context_hidden, utt_context_hidden=utt_context_hidden,
+                                                  criterion=criterion, da_criterion=da_criterion)
 
             total_loss += loss
     return total_loss

@@ -1,8 +1,15 @@
-import os, re, json
+import os, re, json, math
 import matplotlib.pyplot as plt
 import torch
 from nltk import tokenize
 import pickle
+import pandas as pd
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+from gensim import corpora
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from collections import Counter
 
 EOS_token = '<EOS>'
 BOS_token = '<BOS>'
@@ -80,9 +87,11 @@ class utt_Vocab:
             self.construct()
         else:
             self.load()
+        if config['merge_dic']:
+            self._add_tags()
 
     def construct(self):
-        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<ConvPAD>': 4}
+        vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<TAG>': 4}
         vocab_count = {}
 
         for post, cmnt in zip(self.posts, self.cmnts):
@@ -106,7 +115,6 @@ class utt_Vocab:
             if len(vocab) >= self.config['UTT_MAX_VOCAB']: break
         self.word2id = vocab
         self.id2word = {v : k for k, v in vocab.items()}
-
         return vocab
 
     def tokenize(self, X_tensor, Y_tensor):
@@ -120,6 +128,51 @@ class utt_Vocab:
     def load(self):
         self.word2id = pickle.load(open(os.path.join(self.config['log_root'], 'utterance_vocab.dict'), 'rb'))
         self.id2word = {v: k for k, v in self.word2id.items()}
+
+    def _add_tags(self):
+        tags = ['<Uninterpretable>', '<Statement>', '<Question>',
+               '<Directive>', '<Propose>', '<Greeting>',
+               '<Apology>', '<Agreement>', '<Understanding>', '<Other>']
+        for idx, tag in enumerate(tags, 1):
+            self.word2id[tag] = -idx
+
+class tfidf:
+    def __init__(self, document):
+        self.doc = document
+        self.model = TfidfVectorizer(min_df=0.03)
+        self.tf_idf = self.model.fit_transform(self.doc).toarray()
+        index = self.tf_idf.argsort(axis=1)[:,::-1]
+        feature_names = np.array(self.model.get_feature_names())
+        self.feature_words = feature_names[index]
+
+    def get_topk(self, k):
+        return self.feature_words[:, :k]
+
+class MPMI:
+    def __init__(self, documents):
+        self.docs = {tag: [word for word in doc.split(' ')] for tag, doc in documents.items()}
+        self.vocab = corpora.Dictionary([doc for doc in self.docs.values()])
+        self.tag_idx = {tag: idx for idx, tag in enumerate(self.docs.keys())}
+        self._count()
+
+    def _count(self):
+        N = len([word for doc in self.docs.values() for word in doc])
+        counts = {tag : Counter(doc) for tag, doc in self.docs.items()}
+        overall_counts = Counter([word for doc in self.docs.values() for word in doc])
+        matrix = [[None for _ in self.vocab.token2id] for _ in counts.keys()]
+        for tidx, (tag, count) in enumerate(counts.items(), 1):
+            for widx, (word, freq) in enumerate(count.items(), 1):
+                # print('\rcalculating {}/{} words in {}/{} tags'.format(widx, len(count), tidx, len(counts)), end='')
+                Pxy = freq / len(self.docs[tag])
+                Px = overall_counts[word] / N
+                PMI = math.log(Pxy / Px, 2)
+                matrix[self.tag_idx[tag]][self.vocab.token2id[word]] = PMI
+        self.matrix = matrix
+        print()
+
+    def get_score(self, sentences, tag):
+        return sum(sum(self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] for word in sentence if word in self.vocab.token2id and not self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] is None)/ len(sentence) for sentence in sentences) / len(sentences)
+
 
 def create_traindata(config):
     files = [f for f in os.listdir(config['train_path']) if file_pattern.match(f)]
@@ -194,6 +247,24 @@ def makefig(X, Y, xlabel, ylabel, imgname):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.savefig(os.path.join('./data/images/', imgname))
+
+def save_cmx(y_true, y_pred, expr):
+    fontsize = 50
+    labels = sorted(list(set(y_true)))
+    cmx_data = confusion_matrix(y_true, y_pred, labels=labels)
+
+    df_cmx = pd.DataFrame(cmx_data, index=labels, columns=labels)
+
+    plt.figure(figsize=(40, 30))
+    plt.rcParams['font.size'] = fontsize
+    heatmap = sns.heatmap(df_cmx, annot=True, fmt='d', cmap='Blues')
+    heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=fontsize)
+    heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=fontsize)
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.tight_layout()
+    plt.savefig('./data/images/cmx_{}.png'.format(expr))
+
 
 if __name__ == '__main__':
     create_traindata()
