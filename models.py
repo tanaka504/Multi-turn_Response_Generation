@@ -200,31 +200,30 @@ class EncoderDecoderModel(nn.Module):
                                                        utt_context_hidden=utt_context_hidden,
                                                        step_size=step_size)
 
-        # Response Decode
+        # DA Decode
         utt_decoder_hidden = utt_dec_hidden
-        if self.config['merge_dic']:
-            prev_words = torch.tensor([[self.utt_vocab.word2id['<TAG>']] for _ in range(step_size)]).to(self.device)
-            preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden)
-            da_decoder_output = self.da_decoder(utt_decoder_output)
-            da_decoder_output = da_decoder_output.squeeze(1)
+        if self.config['use_da']:
+            if self.config['merge_dic']:
+                prev_words = torch.tensor([[self.utt_vocab.word2id['<TAG>']] for _ in range(step_size)]).to(self.device)
+                preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden)
+                da_decoder_output = self.da_decoder(utt_decoder_output)
+            else:
+                da_decoder_output = self.da_decoder(da_dec_hidden)
+            da_output = da_decoder_output.squeeze(1)
             Y_da = Y_da.squeeze(0)
             Y_da = Y_da.squeeze(1)
-            da_loss = da_criterion(da_decoder_output, Y_da)
-            
+            da_loss = da_criterion(da_output, Y_da)
+        
+        tag = da_decoder_output if self.config['speaker'] else None
+        # Response Decode
         for j in range(len(Y_utt[0]) - 1):
             prev_words = Y_utt[:, j].unsqueeze(1)
-            preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden)
+            preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden, tag)
             _, topi = preds.topk(1)
-            loss += criterion(preds.view(-1, self.config['UTT_MAX_VOCAB']), Y_utt[:, j + 1])
+            loss += criterion(preds.view(-1, len(self.utt_vocab.word2id)), Y_utt[:, j + 1])
 
-        # DA Decode
+        # Calc. loss
         if self.config['use_da'] and not self.config['merge_dic']:
-            da_decoder_output = self.da_decoder(da_dec_hidden)
-            da_decoder_output = da_decoder_output.squeeze(1)
-            Y_da = Y_da.squeeze(0)
-            Y_da = Y_da.squeeze(1)
-            da_loss = da_criterion(da_decoder_output, Y_da)
-
             loss = self._calc_loss(utt_loss=loss, da_loss=da_loss, true_y=Y_da, config=self.config)
         elif self.config['merge_dic']:
             loss = self._calc_loss(utt_loss=loss, da_loss=da_loss, true_y=Y_da, config=self.config)
@@ -248,29 +247,29 @@ class EncoderDecoderModel(nn.Module):
                                                            utt_context_hidden=utt_context_hidden,
                                                            step_size=1)
 
-            # Response Decode
+            # DA Decode
             utt_decoder_hidden = utt_dec_hidden
-            if self.config['merge_dic']:
-                prev_words = torch.tensor([[self.utt_vocab.word2id['<TAG>']]]).to(self.device)
-                preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden)
-                da_decoder_output = self.da_decoder(utt_decoder_output)
-                da_decoder_output = da_decoder_output.squeeze(1)
+            if self.config['use_da']:
+                if self.config['merge_dic']:
+                    prev_words = torch.tensor([[self.utt_vocab.word2id['<TAG>']]]).to(self.device)
+                    preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden)
+                    da_decoder_output = self.da_decoder(utt_decoder_output)
+                else:
+                    da_decoder_output = self.da_decoder(da_dec_hidden)
+                da_output = da_decoder_output.squeeze(1)
                 Y_da = Y_da.squeeze(0)
-                da_loss = da_criterion(da_decoder_output, Y_da)
+                da_loss = da_criterion(da_output, Y_da)
 
+            tag = da_decoder_output if self.config['speaker'] else None
+            # Response Decode
             for j in range(len(Y_utt[0]) - 1):
                 prev_words = Y_utt[:, j].unsqueeze(1)
-                preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden)
+                preds, utt_decoder_hidden, utt_decoder_output = self.utt_decoder(prev_words, utt_decoder_hidden, tag)
                 _, topi = preds.topk(1)
-                loss += criterion(preds.view(-1, self.config['UTT_MAX_VOCAB']), Y_utt[:, j + 1])
+                loss += criterion(preds.view(-1, len(self.utt_vocab.word2id)), Y_utt[:, j + 1])
 
-            # DA Decode
+            # Calc. loss
             if self.config['use_da'] and not self.config['merge_dic']:
-                da_decoder_output = self.da_decoder(da_dec_hidden)
-                da_decoder_output = da_decoder_output.squeeze(1)
-                Y_da = Y_da.squeeze(0)
-                da_loss = da_criterion(da_decoder_output, Y_da)
-
                 loss = self._calc_loss(utt_loss=loss, da_loss=da_loss, true_y=Y_da, config=self.config)
             elif self.config['merge_dic']:
                 loss = self._calc_loss(utt_loss=loss, da_loss=da_loss, true_y=Y_da, config=self.config)
@@ -298,12 +297,13 @@ class EncoderDecoderModel(nn.Module):
 
             utt_decoder_hidden = utt_dec_hidden
             prev_words = torch.tensor([[self.utt_vocab.word2id['<BOS>']]]).to(self.device)
-
+            
+            tag = decoder_output if self.config['speaker'] else None
             if self.config['beam_size']:
-                pred_seq, utt_decoder_hidden = self._beam_decode(decoder=self.utt_decoder, decoder_hiddens=utt_decoder_hidden, config=self.config)
+                pred_seq, utt_decoder_hidden = self._beam_decode(decoder=self.utt_decoder, decoder_hiddens=utt_decoder_hidden, tag=tag, config=self.config)
                 pred_seq = pred_seq[0]
             else:
-                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, self.utt_decoder, utt_decoder_hidden, config=self.config)
+                pred_seq, utt_decoder_hidden = self._greedy_decode(prev_words, self.utt_decoder, utt_decoder_hidden, tag, config=self.config)
 
         return pred_seq, da_context_hidden, utt_context_hidden, decoder_output
 
@@ -342,11 +342,11 @@ class EncoderDecoderModel(nn.Module):
         return (1 - alpha) * utt_loss.mean() + alpha * da_loss.mean()
 
 
-    def _greedy_decode(self, prev_words, decoder, decoder_hidden, config):
+    def _greedy_decode(self, prev_words, decoder, decoder_hidden, tag, config):
         EOS_token = self.utt_vocab.word2id['<EOS>']
         pred_seq = []
         for _ in range(config['max_len']):
-            preds, decoder_hidden, _ = decoder(prev_words, decoder_hidden)
+            preds, decoder_hidden, _ = decoder(prev_words, decoder_hidden, tag)
             _, topi = preds.topk(1)
             pred_seq.append(topi.item())
             prev_words = torch.tensor([[topi]]).to(self.device)
@@ -356,7 +356,7 @@ class EncoderDecoderModel(nn.Module):
         return pred_seq, decoder_hidden
 
 
-    def _beam_decode(self, decoder, decoder_hiddens, config, encoder_outputs=None):
+    def _beam_decode(self, decoder, decoder_hiddens, tag, config, encoder_outputs=None):
         BOS_token = self.utt_vocab.word2id['<BOS>']
         EOS_token = self.utt_vocab.word2id['<EOS>']
         decoded_batch = []
@@ -396,8 +396,7 @@ class EncoderDecoderModel(nn.Module):
                     else:
                         continue
 
-                decoder_output, decoder_hidden, _ = decoder(decoder_input, decoder_hidden)
-
+                decoder_output, decoder_hidden, _ = decoder(decoder_input, decoder_hidden, tag)
                 log_prob, indexes = torch.topk(decoder_output, config['beam_size'])
                 nextnodes = []
 

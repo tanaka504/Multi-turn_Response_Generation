@@ -108,8 +108,7 @@ def train(experiment, fine_tuning=False):
     print_total_loss = 0
     plot_total_loss = 0
 
-    pretrain_model = 'hred_pretrain' if 'hred' in experiment else 'pretrain'
-    pretrain_model = 'pretrain2' if experiment == 'proposal2' else pretrain_model
+    pretrain_model = experiment + '_pretrain'
 
     # constract models
     if config['use_da']:
@@ -131,7 +130,7 @@ def train(experiment, fine_tuning=False):
         da_decoder = None
 
     utt_encoder = UtteranceEncoder(utt_input_size=len(utt_vocab.word2id), embed_size=config['UTT_EMBED'], utterance_hidden=config['UTT_HIDDEN'], padding_idx=utt_vocab.word2id['<UttPAD>'], fine_tuning=fine_tuning).to(device)
-    utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=config['UTT_MAX_VOCAB']).to(device)
+    utt_decoder = UtteranceDecoder(utterance_hidden_size=config['DEC_HIDDEN'], utt_embed_size=config['UTT_EMBED'], utt_vocab_size=len(utt_vocab.word2id)).to(device)
     # requires_grad が True のパラメータのみをオプティマイザにのせる
     utt_encoder_opt = optim.Adam(list(filter(lambda x: x.requires_grad, utt_encoder.parameters())), lr=lr)
     utt_decoder_opt = optim.Adam(utt_decoder.parameters(), lr=lr)

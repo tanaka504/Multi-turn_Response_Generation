@@ -108,9 +108,12 @@ class UtteranceDecoder(nn.Module):
         self.hh = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
         self.he = nn.Linear(self.hidden_size, self.embed_size)
         self.ey = nn.Linear(self.embed_size, self.vocab_size)
+        self.th = nn.Linear(self.hidden_size + 10, self.hidden_size)
 
-    def forward(self, Y, hidden):
+    def forward(self, Y, hidden, tag=None):
         h = F.tanh(self.eh(self.ye(Y)))
+        if not tag is None:
+            h = self.th(torch.cat((h, tag), dim=2))
         output, hidden = self.hh(h, hidden)
         y_dist = self.ey(torch.tanh(self.he(output.squeeze(1))))
         return y_dist, hidden, output

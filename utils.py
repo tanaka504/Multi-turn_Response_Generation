@@ -87,8 +87,8 @@ class utt_Vocab:
             self.construct()
         else:
             self.load()
-        if config['merge_dic']:
-            self._add_tags()
+        # if config['merge_dic']:
+        #     self._add_tags()
 
     def construct(self):
         vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<TAG>': 4}
@@ -166,12 +166,15 @@ class MPMI:
                 Pxy = freq / len(self.docs[tag])
                 Px = overall_counts[word] / N
                 PMI = math.log(Pxy / Px, 2)
-                matrix[self.tag_idx[tag]][self.vocab.token2id[word]] = PMI
+                matrix[self.tag_idx[tag]][self.vocab.token2id[word]] = max(PMI, 0)
         self.matrix = matrix
         print()
 
     def get_score(self, sentences, tag):
-        return sum(sum(self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] for word in sentence if word in self.vocab.token2id and not self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] is None)/ len(sentence) for sentence in sentences) / len(sentences)
+        if len(sentences) < 1:
+            return 0
+        else:
+            return sum(sum(self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] for word in sentence if word in self.vocab.token2id and not self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] is None)/ len(sentence) for sentence in sentences) / len(sentences)
 
 
 def create_traindata(config):
