@@ -71,11 +71,11 @@ def train(experiment, fine_tuning=False):
 
     print('Finish create vocab dic...')
 
-    X_train, Y_train, X_valid, Y_valid = minimize(X_train), minimize(Y_train), minimize(X_valid), minimize(Y_valid)
-    XU_train, YU_train, XU_valid, YU_valid = minimize(XU_train), minimize(YU_train), minimize(XU_valid), minimize(YU_valid)
+    # X_train, Y_train, X_valid, Y_valid = minimize(X_train), minimize(Y_train), minimize(X_valid), minimize(Y_valid)
+    # XU_train, YU_train, XU_valid, YU_valid = minimize(XU_train), minimize(YU_train), minimize(XU_valid), minimize(YU_valid)
 
-    with open('./data/minidata_hred.pkl', 'wb') as f:
-        pickle.dump([(x, y) for x, y in zip(XU_train, YU_train)], f)
+    # with open('./data/minidata_hred.pkl', 'wb') as f:
+    #     pickle.dump([(x, y) for x, y in zip(XU_train, YU_train)], f)
 
     # Tokenize sequences
     X_train, Y_train = da_vocab.tokenize(X_train, Y_train)
@@ -84,6 +84,7 @@ def train(experiment, fine_tuning=False):
     XU_train, YU_train = utt_vocab.tokenize(XU_train, YU_train)
     XU_valid, YU_valid = utt_vocab.tokenize(XU_valid, YU_valid)
     print('Finish preparing dataset...')
+
 
     assert len(X_train) == len(Y_train), 'Unexpect content in train data'
     assert len(X_valid) == len(Y_valid), 'Unexpect content in valid data'
@@ -97,7 +98,7 @@ def train(experiment, fine_tuning=False):
 
     pretrain_model = experiment + '_pretrain'
 
-    # constract models
+    # construct models
     if config['use_da']:
         da_vocab_size = len(da_vocab.word2id)
         da_encoder = DAEncoder(da_input_size=da_vocab_size, da_embed_size=config['DA_EMBED'], da_hidden=config['DA_HIDDEN']).to(device)
@@ -180,6 +181,7 @@ def train(experiment, fine_tuning=False):
             Y_seq = [Y_train[seq_idx] for seq_idx in batch_idx]
             turn_seq = [Tturn[seq_idx] for seq_idx in batch_idx]
             max_conv_len = max(len(s) for s in X_seq)  # seq_len は DA と UTT で共通
+            assert all(len(s) == max_conv_len for s in X_seq), min(len(s) for s in X_seq)
 
             XU_seq = [XU_train[seq_idx] for seq_idx in batch_idx]
             YU_seq = [YU_train[seq_idx] for seq_idx in batch_idx]

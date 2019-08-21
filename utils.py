@@ -88,8 +88,6 @@ class utt_Vocab:
             self.construct()
         else:
             self.load()
-        # if config['merge_dic']:
-        #     self._add_tags()
 
     def construct(self):
         vocab = {'<UNK>': 0, '<EOS>': 1, '<BOS>': 2, '<UttPAD>': 3, '<TAG>': 4}
@@ -130,12 +128,6 @@ class utt_Vocab:
         self.word2id = pickle.load(open(os.path.join(self.config['log_root'], 'utterance_vocab.dict'), 'rb'))
         self.id2word = {v: k for k, v in self.word2id.items()}
 
-    def _add_tags(self):
-        tags = ['<Uninterpretable>', '<Statement>', '<Question>',
-               '<Directive>', '<Propose>', '<Greeting>',
-               '<Apology>', '<Agreement>', '<Understanding>', '<Other>']
-        for idx, tag in enumerate(tags, 1):
-            self.word2id[tag] = -idx
 
 class tfidf:
     def __init__(self, document):
@@ -209,10 +201,11 @@ def create_traindata(config, prefix='train'):
                 else:
                     da_seq.append(jsondata['DA'][-1])
                     utt_seq.append(jsondata['sentence'][-1].split(' '))
-            da_seq = [easy_damsl(da) for da in da_seq]
-            
+            da_seq = [da for da in da_seq]
+        if len(da_seq) <= config['window_size']: continue
         if config['state']:
             for i in range(max(1, len(da_seq) - 1 - config['window_size'])):
+                assert len(da_seq[i:min(len(da_seq)-1, i + config['window_size'])]) >= config['window_size'], filename
                 da_posts.append(da_seq[i:min(len(da_seq)-1, i + config['window_size'])])
                 da_cmnts.append(da_seq[1 + i:min(len(da_seq), 1 + i + config['window_size'])])
                 utt_posts.append(utt_seq[i:min(len(da_seq)-1, i + config['window_size'])])
@@ -226,6 +219,7 @@ def create_traindata(config, prefix='train'):
             turn.append(turn_seq[:-1])
     assert len(da_posts) == len(da_cmnts), 'Unexpect length da_posts and da_cmnts'
     assert len(utt_posts) == len(utt_cmnts), 'Unexpect length utt_posts and utt_cmnts'
+    assert all(len(ele) == config['window_size'] for ele in da_posts), {len(ele) for ele in da_posts}
     return da_posts, da_cmnts, utt_posts, utt_cmnts, turn
 
 def easy_damsl(tag):
