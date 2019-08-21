@@ -14,7 +14,8 @@ from collections import Counter
 EOS_token = '<EOS>'
 BOS_token = '<BOS>'
 parallel_pattern = re.compile(r'^(.+?)(\t)(.+?)$')
-file_pattern = re.compile(r'^sw\_([0-9]+?)\_([0-9]+?)\.jsonlines$')
+# file_pattern = re.compile(r'^sw\_([0-9]+?)\_([0-9]+?)\.jsonlines$')
+file_pattern = re.compile(r'^(.*?)\.jsonl$')
 
 damsl_align = {'<Uninterpretable>': ['%', 'x'],
                '<Statement>': ['sd', 'sv', '^2', 'no', 't3', 't1', 'oo', 'cc', 'co', 'oo_co_cc'],
@@ -177,7 +178,8 @@ class MPMI:
             return sum(sum(self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] for word in sentence if word in self.vocab.token2id and not self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] is None)/ len(sentence) for sentence in sentences) / len(sentences)
 
 
-def create_traindata(config):
+def create_traindata(config, prefix='train'):
+    file_pattern = re.compile(r'^sw_{}_([0-9]*?)\.jsonlines$'.format(prefix))
     files = [f for f in os.listdir(config['train_path']) if file_pattern.match(f)]
     da_posts = []
     da_cmnts = []
@@ -240,8 +242,8 @@ def separate_data(posts, cmnts, turn):
     return X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn
 
 def en_preprocess(utterance):
-    utterance = re.sub(r'\-\-', '', utterance)
-    if utterance == '': utterance = 'hmm .'
+    # utterance = re.sub(r'\-\-', '', utterance)
+    if utterance == '': return ['<Silence>']
     return tokenize.word_tokenize(utterance.lower())
 
 def makefig(X, Y, xlabel, ylabel, imgname):

@@ -38,18 +38,6 @@ def initialize_env(name):
     return config
 
 
-def create_DAdata(config):
-    posts, cmnts, _, _, turn = create_traindata(config)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn = separate_data(posts, cmnts, turn)
-    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn
-
-
-def create_Uttdata(config):
-    _, _, posts, cmnts, turn = create_traindata(config)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test, _, _, _ = separate_data(posts, cmnts, turn)
-    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test
-
-
 # use when testing
 def minimize(data):
     return data[:1000]
@@ -67,10 +55,9 @@ def make_batchidx(X):
 
 def train(experiment, fine_tuning=False):
     print('loading setting "{}"...'.format(experiment))
-
     config = initialize_env(experiment)
-    X_train, Y_train, X_valid, Y_valid, _, _, Tturn, Vturn, _ = create_DAdata(config)
-    XU_train, YU_train, XU_valid, YU_valid, _, _ = create_Uttdata(config)
+    X_train, Y_train, XU_train, YU_train, Tturn = create_traindata(config=config, prefix='train')
+    X_valid, Y_valid, XU_valid, YU_valid, Vturn = create_traindata(config=config, prefix='valid')
     print('Finish create train data...')
 
     if os.path.exists(os.path.join(config['log_root'], 'da_vocab.dict')):

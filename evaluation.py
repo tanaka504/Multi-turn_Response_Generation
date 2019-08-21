@@ -21,9 +21,8 @@ import pickle
 def evaluate(experiment):
     print('load vocab')
     config = initialize_env(experiment)
-    X_train, Y_train, X_valid, Y_valid, X_test, Y_test, _, _, turn = create_DAdata(config)
+    X_test, Y_test, XU_test, YU_test, turn = create_traindata(config=config, prefix='test')
     da_vocab = da_Vocab(config=config, create_vocab=False)
-    XU_train, YU_train, XU_valid, YU_valid, XU_test, YU_test = create_Uttdata(config)
     utt_vocab = utt_Vocab(config=config, create_vocab=False)
 
     X_test, Y_test = da_vocab.tokenize(X_test, Y_test)

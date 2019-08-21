@@ -36,6 +36,7 @@ def preprocess(dir_path, filename):
                     sentences = [m.group(3)]
                     prev_caller = current_caller
 
+
 def FileIter():
     for i in range(14):
         dir_path = os.path.join('./data/swda', 'sw{:02}utt'.format(i))
@@ -46,8 +47,40 @@ def FileIter():
             print('\rFinish preprocess {}/{} files'.format(i, len(files)), end='')
         print()
 
-def test1file():
-    preprocess('./data/swda/sw00utt', 'sw_0002_4330.utt.txt')
+def modify(dirname, filename):
+    with open(os.path.join(dirname, filename), 'r') as f:
+        for idx, line in enumerate(f.readlines(), 1):
+            print('\r{} conversations'.format(idx), end='')
+            prev_caller = None
+            das = []
+            sentences = []
+            jsondata = json.loads(line)
+            with open(os.path.join('./data/corpus/', 'sw_{}_{}.jsonlines'.format(re.search(r'(.*?)\.jsonl', filename).group(1), '{:04}'.format(idx))), 'w') as out_f:
+                for utterance in jsondata['utts']:
+                    current_caller = utterance[0]
+                    da = utterance[2][0]
+                    tmp_da[current_caller] = da
+                    if current_caller == prev_caller:
+                        das.append(da)
+                        sentences.append(utterance[1])
+                    else:
+                        if len(das) > 0 and len(sentences) > 0:
+                            out_f.write(json.dumps({'caller': prev_caller,
+                                                    'DA': das,
+                                                    'sentence': sentences}))
+                            out_f.write('\n')
+                        das = [da]
+                        sentences = [utterance[1]]
+                        prev_caller = current_caller
+        print()
+
+
+def main():
+    dirname = './data/json_data'
+    files = [f for f in os.listdir(dirname) if re.match(r'(.*?)\.jsonl', f)]
+    for filename in files:
+        print(filename)
+        modify(dirname, filename)
 
 if __name__ == '__main__':
-    FileIter()
+    main()
