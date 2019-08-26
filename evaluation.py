@@ -6,7 +6,7 @@ from torch import optim
 from models import *
 from nn_blocks import *
 from utils import *
-from train import initialize_env, create_DAdata, create_Uttdata, parse
+from train import initialize_env, parse
 import argparse
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, accuracy_score
 from sklearn.metrics import precision_recall_fscore_support as score
@@ -58,9 +58,7 @@ def evaluate(experiment):
     da_context_hidden = context.initHidden(1, device) if config['use_da'] else None
     utt_context_hidden = utt_context.initHidden(1, device) if config['use_uttcontext'] else None
 
-    preds = []
-    trues = []
-    hyps, refs = [], []
+    result = []
 
     for seq_idx in range(0, len(X_test)):
         print('\r{}/{} conversation evaluating'.format(seq_idx+1, len(X_test)), end='')
@@ -80,21 +78,17 @@ def evaluate(experiment):
         YU_tensor = YU_seq[-1]
         if config['use_da']:
             pred_idx = torch.argmax(decoder_output).item()
-            preds.append(da_vocab.id2word[pred_idx])
+            DA_pred = da_vocab.id2word[pred_idx]
         else:
-            preds.append('None')
+            DA_pred = 'None'
         if not pred_seq[-1] == utt_vocab.word2id['<EOS>']:
             pred_seq.append(utt_vocab.word2id['<EOS>'])
-        trues.append(da_vocab.id2word[Y_tensor])
-        hyps.append(pred_seq)
-        refs.append(YU_tensor)
+        result.append({'DA_preds': DA_pred,
+                       'DA_trues': da_vocab.id2word[Y_tensor],
+                       'hyp': ' '.join([utt_vocab.id2word[wid] for wid in pred_seq]),
+                       'ref': ' '.join([utt_vocab.id2word[wid] for wid in YU_tensor]),
+                       'context': [' '.join(utt_vocab.id2word[wid] for wid in seq) for seq in XU_seq]})
     print()
-
-    result = {'DA_preds': preds,
-              'DA_trues': trues,
-              'BLEU': model.calc_bleu(refs=refs, hyps=hyps),
-              'hyps': [' '.join([utt_vocab.id2word[wid] for wid in hyp]) for hyp in hyps],
-              'refs': [' '.join([utt_vocab.id2word[wid] for wid in ref]) for ref in refs]}
 
     return result
 
@@ -131,10 +125,3 @@ if __name__ == '__main__':
     with open('./data/images/results_{}.pkl'.format(args.expr), 'wb') as f:
         pickle.dump(result, f)
     # calc_average(y_true=result['DA_trues'], y_pred=result['DA_preds'])
-    print('BLEU score: ', result['BLEU'])
-    df = pd.DataFrame({'DA_pred': result['DA_preds'],
-                       'DA_true': result['DA_trues'],
-                       'hyp': [len(hyp.split(' ')) - 2 for hyp in result['hyps']],
-                       'ref': [len(ref.split(' ')) - 2 for ref in result['refs']]})
-    df.sort_values(by=['hyp', 'ref'], ascending=False)
-    # print({tag : sum(df[df['DA_pred'] == tag]['hyp']) / len(df[df['DA_pred'] == tag]['hyp']) for tag in set(df['DA_pred'])})

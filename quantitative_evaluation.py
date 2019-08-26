@@ -1,6 +1,6 @@
 import pickle, re
 from pprint import  pprint
-from train import create_DAdata, create_Uttdata, initialize_env
+from train import initialize_env
 from evaluation import calc_average
 from utils import *
 import pandas as pd
@@ -121,5 +121,5 @@ def quantitative_evaluation():
     df_mpmi.to_csv('./data/images/mpmi.csv')
 
 if __name__ == '__main__':
-    calc_tfidf()
+    quantitative_evaluation()
 
