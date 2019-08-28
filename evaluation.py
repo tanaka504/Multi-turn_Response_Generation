@@ -87,7 +87,7 @@ def evaluate(experiment):
                        'DA_trues': da_vocab.id2word[Y_tensor],
                        'hyp': ' '.join([utt_vocab.id2word[wid] for wid in pred_seq]),
                        'ref': ' '.join([utt_vocab.id2word[wid] for wid in YU_tensor]),
-                       'context': [' '.join(utt_vocab.id2word[wid] for wid in seq) for seq in XU_seq]})
+                       'context': [' '.join([utt_vocab.id2word[wid] for wid in seq]) for seq in XU_seq]})
     print()
 
     return result

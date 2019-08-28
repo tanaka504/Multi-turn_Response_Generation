@@ -14,12 +14,17 @@ hyp_pattern = re.compile(r'^\<BOS\> (.*?)\<EOS\>$')
 
 
 def get_dataframe(result):
-    df = pd.DataFrame({'DA_pred':result['DA_preds'],
-                       'DA_true':result['DA_trues'],
-                       'hyp':[len(hyp.split(' ')) - 2 for hyp in result['hyps']],
-                       'ref':[len(ref.split(' ')) - 2 for ref in result['refs']],
-                       'hyp_txt':[re.sub(r'\<(.+?)\>\s|\s\<(.+?)\>', '' , sentence) for sentence in result['hyps']],
-                       'ref_txt':[re.sub(r'\<(.+?)\>\s|\s\<(.+?)\>', '' , sentence) for sentence in result['refs']]})
+    df = pd.DataFrame({'DA_pred': [], 'DA_true': [],
+                       'hyp_len': [], 'ref_len': [],
+                       'hyp_txt': [], 'ref_txt': []})
+
+    for idx, case in enumerate(result):
+        df.loc[idx] = [case['DA_preds'],
+                       case['DA_trues'],
+                       len(case['hyp'].split(' ')) - 2,
+                       len(case['ref'].split(' ')) - 2,
+                       re.sub(r'\<(.+?)\>\s|\s\<(.+?)\>', '' , case['hyp']),
+                       re.sub(r'\<(.+?)\>\s|\s\<(.+?)\>', '' , case['ref'])]
     return df
 
 def plotfig(X1, Y1, Y2, xlabel, ylabel, imgname):
@@ -33,57 +38,34 @@ def plotfig(X1, Y1, Y2, xlabel, ylabel, imgname):
     plt.savefig(os.path.join('./data/images/', imgname))
 
     
-def quantitative_evaluation():
-    with open('./data/images/results_hred.pkl', 'rb') as f:
+def quantitative_evaluation(expr):
+    with open('./data/images/results_{}.pkl'.format(expr), 'rb') as f:
         result = pickle.load(f)
-    df_hred = get_dataframe(result)
-    with open('./data/images/results_proposal2.pkl', 'rb') as f:
-        result = pickle.load(f)
-    df_proposal = get_dataframe(result)
-    with open('./data/images/results_proposal1.pkl', 'rb') as f:
-        result = pickle.load(f)
-    df_proposal1 = get_dataframe(result)
+    df_result = get_dataframe(result)
     with open('./data/model/utterance_vocab.dict', 'rb') as f:
         vocab = pickle.load(f)
     
-    hyp_words_proposal = {tag : Counter([word for sentence in df_proposal[df_proposal['DA_pred'] == tag]['hyp_txt'] for word in sentence.split(' ')]) for tag in set(df_proposal['DA_pred'])}
-    ref_words = {tag : Counter([word for sentence in df_proposal[df_proposal['DA_true'] == tag]['ref_txt'] for word in sentence.split(' ')]) for tag in set(df_proposal['DA_true'])}
-
-    hyp_words_hred = {tag : Counter([word for sentence in df_hred[df_hred['DA_true'] == tag]['hyp_txt'] for word in sentence.split(' ')]) for tag in set(df_hred['DA_true'])}
-    hyp_words_proposal1 = {tag : Counter([word for sentence in df_proposal1[df_proposal1['DA_pred'] == tag]['hyp_txt'] for word in sentence.split(' ')]) for tag in set(df_proposal1['DA_pred'])}
 
     # make documents for each dialogue-act
-    documents = {tag : ' '.join([sentence for sentence in df_hred[df_hred['DA_true'] == tag]['ref_txt']]) for tag in set(df_hred['DA_true'])}
-    # tf_idf = tfidf(document=[sentence for sentence in documents.values()], calc=True)
-    tf_idf = tfidf(document=[document for document in documents.values()])
+    documents = {tag : ' '.join([sentence for sentence in df_result[df_result['DA_true'] == tag]['ref_txt']]) for tag in set(df_result['DA_true'])}
+    hyp_words = {tag : ' '.join([sentence for sentence in df_result[df_result['DA_pred'] == tag]['hyp_txt']]) for tag in set(df_result['DA_pred'])}
+    tf_idf = tfidf(document=[sentence for sentence in documents.values()], calc=True)
+    # tf_idf = tfidf(document=[document for document in documents.values()])
     keywords = {tag: [kwd for kwd in kwds] for kwds, tag in zip(tf_idf.get_topk(50), documents.keys())}
-    df_corr = pd.DataFrame({
-        'HRED/pearson':[], 'HRED/spearman':[],
-        'Merge/pearson':[], 'Merge/spearman':[],
-        'Separate/pearson':[], 'Separate/spearman':[]})
-    for t in set(df_proposal['DA_true']):
-        if t in hyp_words_proposal.keys():
+    df_corr = pd.DataFrame({'{}/pearson'.format(expr):[], '{}/spearman'.format(expr):[],})
+    for t in set(df_result['DA_true']):
+        if t in hyp_words.keys():
             vocab = keywords[t]
             s_ref = [0 for _ in range(len(vocab))]
             s_proposal = [0 for _ in range(len(vocab))]
-            s_hred = [0 for _ in range(len(vocab))]
-            s_proposal1 = [0 for _ in range(len(vocab))]
-            for w, c in ref_words[t].items():
+            for w, c in documents[t].items():
                 if w in vocab:
                     s_ref[vocab.index(w)] = c
-            for w, c in hyp_words_proposal[t].items():
+            for w, c in hyp_words[t].items():
                 if w in vocab:
                     s_proposal[vocab.index(w)] = c
-            for w, c in hyp_words_hred[t].items():
-                if w in vocab:
-                    s_hred[vocab.index(w)] = c
-            for w, c in hyp_words_proposal1[t].items():
-                if w in vocab:
-                    s_proposal1[vocab.index(w)] = c
             # plotfig(X1=s_ref, Y1=s_proposal, Y2=s_proposal1, xlabel='reference', ylabel='Models', imgname='scatter_{}.png'.format(t))
-            df_corr.loc[t] = [pearsonr(s_hred, s_ref)[0], spearmanr(s_hred, s_ref)[0],
-                              pearsonr(s_proposal, s_ref)[0], spearmanr(s_proposal, s_ref)[0],
-                              pearsonr(s_proposal1, s_ref)[0], spearmanr(s_proposal1, s_ref)[0]]
+            df_corr.loc[t] = [pearsonr(s_proposal, s_ref)[0], spearmanr(s_proposal, s_ref)[0]]
 
         else:
             print('No {} in hypothesis'.format(t))
@@ -92,12 +74,12 @@ def quantitative_evaluation():
     df_corr.to_csv('./data/images/keyword_correlation.csv')
 
     df_tag = pd.DataFrame({'pearson':[], 'spearman':[]})
-    for a, b in combinations(set(df_proposal['DA_true']), 2):
+    for a, b in combinations(set(df_result['DA_true']), 2):
         s_a = [0 for _ in range(len(vocab))]
         s_b = [0 for _ in range(len(vocab))]
-        for w, c in ref_words[a].items():
+        for w, c in documents[a].items():
             s_a[vocab[w]] = c
-        for w, c in ref_words[b].items():
+        for w, c in documents[b].items():
             s_b[vocab[w]] = c
         df_tag.loc['{} & {}'.format(a, b)] = [pearsonr(s_a, s_b)[0], spearmanr(s_a, s_b)[0]]
 
@@ -106,20 +88,22 @@ def quantitative_evaluation():
 
     mpmi = MPMI(documents=documents)
 
-    df_mpmi = pd.DataFrame({
-        'Merge/MPMI':[], 'Separate/MPMI':[]})
+    df_mpmi = pd.DataFrame({'{}/MPMI'.format(expr):[]})
 
-    for t in set(df_proposal['DA_true']):
-        if t in hyp_words_proposal.keys():
-            merge_sentences = [[word for word in sentence.split(' ')] for sentence in df_proposal1[df_proposal1['DA_pred'] == t]['hyp_txt']]
-            separate_sentences = [[word for word in sentence.split(' ')] for sentence in df_proposal[df_proposal['DA_pred'] == t]['hyp_txt']]
-            df_mpmi.loc[t] = [mpmi.get_score(merge_sentences, t), mpmi.get_score(separate_sentences, t)]
+    for t in set(df_result['DA_true']):
+        if t in hyp_words.keys():
+            sentences = [[word for word in sentence.split(' ')] for sentence in df_result[df_result['DA_pred'] == t]['hyp_txt']]
+            df_mpmi.loc[t] = [mpmi.get_score(sentences, t)]
         else:
             print('No {} in hypothesis'.format(t))
     
     print(df_mpmi)
     df_mpmi.to_csv('./data/images/mpmi.csv')
 
-if __name__ == '__main__':
+def main():
     quantitative_evaluation()
+
+
+if __name__ == '__main__':
+    main()
 
