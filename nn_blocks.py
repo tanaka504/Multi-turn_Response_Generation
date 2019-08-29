@@ -108,7 +108,7 @@ class UtteranceDecoder(nn.Module):
         self.hh = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
         self.he = nn.Linear(self.hidden_size, self.embed_size)
         self.ey = nn.Linear(self.embed_size, self.vocab_size)
-        self.th = nn.Linear(self.hidden_size + 10, self.hidden_size)
+        self.th = nn.Linear(self.hidden_size + 43, self.hidden_size)
 
     def forward(self, Y, hidden, tag=None):
         h = F.tanh(self.eh(self.ye(Y)))

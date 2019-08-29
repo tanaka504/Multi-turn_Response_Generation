@@ -15,16 +15,16 @@ hyp_pattern = re.compile(r'^\<BOS\> (.*?)\<EOS\>$')
 
 def get_dataframe(result):
     df = pd.DataFrame({'DA_pred': [], 'DA_true': [],
-                       'hyp_len': [], 'ref_len': [],
-                       'hyp_txt': [], 'ref_txt': []})
+                       'hyp_len': [], 'hyp_txt': [],
+                       'ref_len': [], 'ref_txt': []})
 
     for idx, case in enumerate(result):
         df.loc[idx] = [case['DA_preds'],
                        case['DA_trues'],
-                       len(case['hyp'].split(' ')) - 2,
-                       len(case['ref'].split(' ')) - 2,
-                       re.sub(r'\<(.+?)\>\s|\s\<(.+?)\>', '' , case['hyp']),
-                       re.sub(r'\<(.+?)\>\s|\s\<(.+?)\>', '' , case['ref'])]
+                       len(case['hyp'].split(' ')),
+                       re.sub(r'\<unk\>', '<UNK>', case['hyp']),
+                       len(case['ref'].split(' ')),
+                       re.sub(r'\<unk\>', '<UNK>', case['ref'])]
     return df
 
 def plotfig(X1, Y1, Y2, xlabel, ylabel, imgname):
@@ -43,13 +43,14 @@ def quantitative_evaluation(expr):
         result = pickle.load(f)
     df_result = get_dataframe(result)
     with open('./data/model/utterance_vocab.dict', 'rb') as f:
-        vocab = pickle.load(f)
+        utt_vocab = pickle.load(f)
     
-
     # make documents for each dialogue-act
     documents = {tag : ' '.join([sentence for sentence in df_result[df_result['DA_true'] == tag]['ref_txt']]) for tag in set(df_result['DA_true'])}
-    hyp_words = {tag : ' '.join([sentence for sentence in df_result[df_result['DA_pred'] == tag]['hyp_txt']]) for tag in set(df_result['DA_pred'])}
-    tf_idf = tfidf(document=[sentence for sentence in documents.values()], calc=True)
+    hyp_words = {tag : Counter([word for sentence in df_result[df_result['DA_pred'] == tag]['hyp_txt'] for word in sentence.split(' ')]) for tag in set(df_result['DA_pred'])}
+    ref_words = {tag : Counter([word for sentence in df_result[df_result['DA_true'] == tag]['ref_txt'] for word in tokenize.word_tokenize(sentence)]) for tag in set(df_result['DA_true'])}
+
+    tf_idf = tfidf(document=[sentence for sentence in documents.values()])
     # tf_idf = tfidf(document=[document for document in documents.values()])
     keywords = {tag: [kwd for kwd in kwds] for kwds, tag in zip(tf_idf.get_topk(50), documents.keys())}
     df_corr = pd.DataFrame({'{}/pearson'.format(expr):[], '{}/spearman'.format(expr):[],})
@@ -58,7 +59,7 @@ def quantitative_evaluation(expr):
             vocab = keywords[t]
             s_ref = [0 for _ in range(len(vocab))]
             s_proposal = [0 for _ in range(len(vocab))]
-            for w, c in documents[t].items():
+            for w, c in ref_words[t].items():
                 if w in vocab:
                     s_ref[vocab.index(w)] = c
             for w, c in hyp_words[t].items():
@@ -75,12 +76,12 @@ def quantitative_evaluation(expr):
 
     df_tag = pd.DataFrame({'pearson':[], 'spearman':[]})
     for a, b in combinations(set(df_result['DA_true']), 2):
-        s_a = [0 for _ in range(len(vocab))]
-        s_b = [0 for _ in range(len(vocab))]
-        for w, c in documents[a].items():
-            s_a[vocab[w]] = c
-        for w, c in documents[b].items():
-            s_b[vocab[w]] = c
+        s_a = [0 for _ in range(len(utt_vocab))]
+        s_b = [0 for _ in range(len(utt_vocab))]
+        for w, c in ref_words[a].items():
+            s_a[utt_vocab[w]] = c
+        for w, c in ref_words[b].items():
+            s_b[utt_vocab[w]] = c
         df_tag.loc['{} & {}'.format(a, b)] = [pearsonr(s_a, s_b)[0], spearmanr(s_a, s_b)[0]]
 
     print(df_tag)
@@ -101,7 +102,9 @@ def quantitative_evaluation(expr):
     df_mpmi.to_csv('./data/images/mpmi.csv')
 
 def main():
-    quantitative_evaluation()
+    experiments = ['kgcvae']
+    for expr in experiments:
+        quantitative_evaluation(expr)
 
 
 if __name__ == '__main__':
