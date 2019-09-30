@@ -5,6 +5,7 @@ from queue import PriorityQueue
 import operator
 from nltk.translate.bleu_score import corpus_bleu
 
+
 class DApredictModel(nn.Module):
     def __init__(self, device):
         super(DApredictModel, self).__init__()

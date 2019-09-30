@@ -240,6 +240,7 @@ def en_preprocess(utterance):
     if utterance == '': return ['<Silence>']
     return tokenize.word_tokenize(utterance.lower())
 
+
 def makefig(X, Y, xlabel, ylabel, imgname):
     plt.figure(figsize=(12, 6))
     plt.bar(X, Y)
