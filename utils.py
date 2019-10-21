@@ -170,6 +170,7 @@ class MPMI:
             return sum(sum(self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] for word in sentence if word in self.vocab.token2id and not self.matrix[self.tag_idx[tag]][self.vocab.token2id[word]] is None)/ len(sentence) for sentence in sentences) / len(sentences)
 
 
+
 def create_traindata(config, prefix='train'):
     file_pattern = re.compile(r'^sw_{}_([0-9]*?)\.jsonlines$'.format(prefix))
     files = [f for f in os.listdir(config['train_path']) if file_pattern.match(f)]

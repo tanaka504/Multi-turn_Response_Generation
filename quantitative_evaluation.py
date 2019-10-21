@@ -10,7 +10,9 @@ from scipy.stats import pearsonr, spearmanr
 from itertools import combinations
 import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from scipy.spatial.distance import cosine
 from pprint import pprint
+from NRG_evaluation import BoW_score
 
 
 hyp_pattern = re.compile(r'^\<BOS\> (.*?)\<EOS\>$')
@@ -61,7 +63,6 @@ def quantitative_evaluation(expr):
     ref_words = {tag : Counter([word for sentence in df_result[df_result['DA_true'] == tag]['ref_txt'] for word in tokenize.word_tokenize(sentence)]) for tag in set(df_result['DA_true'])}
 
     tf_idf = tfidf(document=[sentence for sentence in documents.values()])
-    # tf_idf = tfidf(document=[document for document in documents.values()])
     keywords = {tag: [kwd for kwd in kwds] for kwds, tag in zip(tf_idf.get_topk(50), documents.keys())}
     df_corr = pd.DataFrame({'1-Index':[], '{}/pearson'.format(expr):[], '{}/spearman'.format(expr):[],})
     for t in set(df_result['DA_true']):
@@ -115,51 +116,43 @@ def quantitative_evaluation(expr):
 def kgCVAE_evaluation(expr):
     with open('./data/results/result_{}.pkl'.format(expr), 'rb') as f:
         results = pickle.load(f)
+    with open('./data/model/utterance_vocab.dict', 'rb') as f:
+        utt_vocab = pickle.load(f)
+    bow_score = BoW_score(w2v_path='./data/model/glove.6B.200d.txt', vocab=utt_vocab)
     DA_prec, DA_recall = [], []
     BLEU_1_prec, BLEU_1_recall = [], []
     BLEU_2_prec, BLEU_2_recall = [], []
     BLEU_3_prec, BLEU_3_recall = [], []
     BLEU_4_prec, BLEU_4_recall = [], []
+    A_bow_prec, A_bow_recall = [], []
+    E_bow_prec, E_bow_recall = [], []
     for idx, result in enumerate(results, 1):
         print('\r*** {}/{} ***'.format(idx, len(results)), end='')
         # DA prec/recall
-        DA_prec.append(sum([1 if da in result['DA_trues'] else 0 for da in result['DA_preds']]) / len(result['DA_preds']))
-        DA_recall.append(sum([1 if da in result['DA_preds'] else 0 for da in result['DA_trues']]) / len(result['DA_trues']))
+        DA_prec.append(np.mean([1 if da in result['DA_trues'] else 0 for da in result['DA_preds']]))
+        DA_recall.append(np.mean([1 if da in result['DA_preds'] else 0 for da in result['DA_trues']]))
 
         # BLEU-n prec/recall
         references = [ref.split(' ') for ref in result['refs']]
         hypothesis = [hyp.split(' ') for hyp in result['hyps']]
-        BLEU_1_prec.append(np.mean([max([calc_bleu(ref, hyp, 1) for ref in references]) for hyp in hypothesis]))
-        BLEU_1_recall.append(np.mean([max([calc_bleu(ref, hyp, 1) for hyp in hypothesis]) for ref in references]))
+        BLEU_1_prec.append(np.max([np.max([calc_bleu(ref, hyp, 1) for ref in references]) for hyp in hypothesis]))
+        BLEU_1_recall.append(np.max([np.max([calc_bleu(ref, hyp, 1) for hyp in hypothesis]) for ref in references]))
 
-        BLEU_2_prec.append(np.mean([max([calc_bleu(ref, hyp, 2) for ref in references]) for hyp in hypothesis]))
-        BLEU_2_recall.append(np.mean([max([calc_bleu(ref, hyp, 2) for hyp in hypothesis]) for ref in references]))
+        BLEU_2_prec.append(np.max([np.max([calc_bleu(ref, hyp, 2) for ref in references]) for hyp in hypothesis]))
+        BLEU_2_recall.append(np.max([np.max([calc_bleu(ref, hyp, 2) for hyp in hypothesis]) for ref in references]))
 
-        BLEU_3_prec.append(np.mean([max([calc_bleu(ref, hyp, 3) for ref in references]) for hyp in hypothesis]))
-        BLEU_3_recall.append(np.mean([max([calc_bleu(ref, hyp, 3) for hyp in hypothesis]) for ref in references]))
+        BLEU_3_prec.append(np.max([np.max([calc_bleu(ref, hyp, 3) for ref in references]) for hyp in hypothesis]))
+        BLEU_3_recall.append(np.max([np.max([calc_bleu(ref, hyp, 3) for hyp in hypothesis]) for ref in references]))
 
-        BLEU_4_prec.append(np.mean([max([calc_bleu(ref, hyp, 4) for ref in references]) for hyp in hypothesis]))
-        BLEU_4_recall.append(np.mean([max([calc_bleu(ref, hyp, 4) for hyp in hypothesis]) for ref in references]))
+        BLEU_4_prec.append(np.max([np.max([calc_bleu(ref, hyp, 4) for ref in references]) for hyp in hypothesis]))
+        BLEU_4_recall.append(np.max([np.max([calc_bleu(ref, hyp, 4) for hyp in hypothesis]) for ref in references]))
 
-        # BLEU-n prec/recall
-        # references = [ref.split(' ') for ref in result['refs']]
-        # hypothesis = [hyp.split(' ') for hyp in result['hyps']]
-        # BLEU_1 = [calc_bleu(references, hyp, 1) for hyp in hypothesis]
-        # BLEU_1_prec.append(np.mean(BLEU_1))
-        # BLEU_1_recall.append(np.max(BLEU_1))
-        #
-        # BLEU_2 = [calc_bleu(references, hyp, 2) for hyp in hypothesis]
-        # BLEU_2_prec.append(np.mean(BLEU_2))
-        # BLEU_2_recall.append(np.max(BLEU_2))
-        #
-        # BLEU_3 = [calc_bleu(references, hyp, 3) for hyp in hypothesis]
-        # BLEU_3_prec.append(np.mean(BLEU_3))
-        # BLEU_3_recall.append(np.max(BLEU_3))
-        #
-        # BLEU_4 = [calc_bleu(references, hyp, 4) for hyp in hypothesis]
-        # BLEU_4_prec.append(np.mean(BLEU_4))
-        # BLEU_4_recall.append(np.max(BLEU_4))
-
+        # A/E-bow prec/recall
+        A_bow, E_bow = bow_score.get_score(refs=references, hyps=hypothesis)
+        A_bow_prec.append(A_bow[0])
+        A_bow_recall.append(A_bow[1])
+        E_bow_prec.append(E_bow[0])
+        E_bow_recall.append(E_bow[1])
     print()
     result = {'DA prec': sum(DA_prec) / len(DA_prec),
     'DA recall': sum(DA_recall) / len(DA_recall),
@@ -170,18 +163,24 @@ def kgCVAE_evaluation(expr):
     'BLEU-3 prec': float(np.mean(BLEU_3_prec)),
     'BLEU-3 recall': float(np.mean(BLEU_3_recall)),
     'BLEU-4 prec': float(np.mean(BLEU_4_prec)),
-    'BLEU-4 recall': float(np.mean(BLEU_4_recall)),}
+    'BLEU-4 recall': float(np.mean(BLEU_4_recall)),
+    'A-bow prec': float(np.mean(A_bow_prec)),
+    'A-bow recall': float(np.mean(A_bow_recall)),
+    'E-bow prec': float(np.mean(E_bow_prec)),
+    'E-bow recall': float(np.mean(E_bow_recall)),}
     # with open('./data/results/QE_{}.csv'.format(expr), 'w') as out_f:
     #     out_f.write('\n'.join(['{},{}'.format(k, v) for k, v in result.items()]))
     return pd.DataFrame(result, index=[expr]).T
 
 
-def calc_bleu(refs, hyp, n):
+def calc_bleu(ref, hyp, n):
     try:
-        return sentence_bleu(references=[refs], hypothesis=hyp, smoothing_function=SmoothingFunction().method7, weights=[1/n for i in range(1, n+1)])
-        # return sentence_bleu(references=[refs], hypothesis=hyp, smoothing_function=SmoothingFunction().method7, weights=[1/3, 1/3, 1/3])
+        return sentence_bleu(references=[ref], hypothesis=hyp, smoothing_function=SmoothingFunction().method7, weights=[1/n for i in range(1, n+1)])
     except:
         return 0.0
+
+def calc_bow_sim(ref, hyp):
+    return 0, 0
 
 def merge_df(_df_corr, _df_mpmi, _df_m2m):
     df_corr = pd.read_csv('./data/results/keyword_correlation.csv')
@@ -191,15 +190,34 @@ def merge_df(_df_corr, _df_mpmi, _df_m2m):
     df_corr = pd.merge(df_corr, _df_corr, on='1-Index', how='outer')
     df_mpmi = pd.merge(df_mpmi, _df_mpmi, on='1-Index', how='outer')
     df_m2m = pd.concat([df_m2m, _df_m2m], axis=1)
-    df_corr.to_csv('./data/results/20190930_keyword_correlation.csv')
-    df_mpmi.to_csv('./data/results/20190930_mpmi.csv')
-    df_m2m.to_csv('./data/results/20190930_many2many_eval.csv')
+    df_corr.to_csv('./data/results/20191003_keyword_correlation.csv')
+    df_mpmi.to_csv('./data/results/20191003_mpmi.csv')
+    df_m2m.to_csv('./data/results/20191003_many2many_eval.csv')
 
 
 def main():
-    # df_result, df_corr, df_mpmi = quantitative_evaluation('kgCVAE_w2v')
+    # df_result, df_corr, df_mpmi = quantitative_evaluation('kgCVAE_DA_catLater')
     df_m2m = kgCVAE_evaluation('kgCVAE_w2v')
-    experiments = ['kgCVAE_woFeat_w2v', 'kgCVAE_DA_w2v', 'kgCVAE_DA_woFeat_w2v']
+    print(df_m2m)
+    input()
+    experiments = ['kgCVAE_DA_woFeat_catLater']
+    for expr in experiments:
+        print(expr)
+        _df_m2m = kgCVAE_evaluation(expr)
+        # _df_result, _df_corr, _df_mpmi = quantitative_evaluation(expr)
+        # df_corr = pd.merge(df_corr, _df_corr, on='1-Index', how='outer')
+        # df_mpmi = pd.merge(df_mpmi, _df_mpmi, on='1-Index', how='outer')
+        df_m2m = pd.concat([df_m2m, _df_m2m], axis=1)
+    merge_df(df_corr, df_mpmi, df_m2m)
+    # df_corr.to_csv('./data/results/20190918_keyword_correlation.csv')
+    # df_mpmi.to_csv('./data/results/20190918_mpmi_merge_last.csv')
+    # df_m2m.to_csv('./data/results/20190923_many2many_eval.csv')
+    
+def initialize():
+    # df_result, df_corr, df_mpmi = quantitative_evaluation('kgCVAE')
+    df_m2m = kgCVAE_evaluation('kgCVAE')
+    experiments = ['kgCVAE_woFeat', 'kgCVAE_DA_woFeat', 'kgCVAE_DA',
+                   'kgCVAE_w2v', 'kgCVAE_woFeat_w2v', 'kgCVAE_DA_w2v', 'kgCVAE_DA_woFeat_w2v']
     for expr in experiments:
         print(expr)
         _df_m2m = kgCVAE_evaluation(expr)
@@ -208,31 +226,11 @@ def main():
         # df_mpmi = pd.merge(df_mpmi, _df_mpmi, on='1-Index', how='outer')
         df_m2m = pd.concat([df_m2m, _df_m2m], axis=1)
     # merge_df(df_corr, df_mpmi, df_m2m)
-    # df_corr.to_csv('./data/results/20190918_keyword_correlation.csv')
-    # df_mpmi.to_csv('./data/results/20190918_mpmi_merge_last.csv')
-    # print(df_m2m)
-    # df_m2m.to_csv('./data/results/20190923_many2many_eval.csv')
-    
-def initialize():
-    df_result, df_corr, df_mpmi = quantitative_evaluation('kgCVAE')
-    df_m2m = kgCVAE_evaluation('kgCVAE')
-    experiments = ['kgCVAE_woFeat', 'kgCVAE_DA_woFeat', 'kgCVAE_DA',
-                   'kgCVAE_merge', 'kgCVAE_woFeat_merge', 'kgCVAE_DA_merge', 'kgCVAE_DA_woFeat_merge',
-                   'kgCVAE_merge_last', 'kgCVAE_woFeat_merge_last', 'kgCVAE_DA_merge_last', 'kgCVAE_DA_woFeat_merge_last',
-                   'kgCVAE_w2v', 'kgCVAE_woFeat_w2v', 'kgCVAE_DA_w2v', 'kgCVAE_DA_woFeat_w2v']
-    for expr in experiments:
-        print(expr)
-        _df_m2m = kgCVAE_evaluation(expr)
-        _df_result, _df_corr, _df_mpmi = quantitative_evaluation(expr)
-        df_corr = pd.merge(df_corr, _df_corr, on='1-Index', how='outer')
-        df_mpmi = pd.merge(df_mpmi, _df_mpmi, on='1-Index', how='outer')
-        df_m2m = pd.concat([df_m2m, _df_m2m], axis=1)
-    # merge_df(df_corr, df_mpmi, df_m2m)
-    df_corr.to_csv('./data/results/20190930_keyword_correlation.csv')
-    df_mpmi.to_csv('./data/results/20190930_mpmi.csv')
-    df_m2m.to_csv('./data/results/20190930_many2many_eval.csv')
+    # df_corr.to_csv('./data/results/keyword_correlation.csv')
+    # df_mpmi.to_csv('./data/results/mpmi.csv')
+    df_m2m.to_csv('./data/results/many2many_eval.csv')
 
 
 if __name__ == '__main__':
-    initialize()
-    # main()
+    # initialize()
+    main()
