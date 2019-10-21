@@ -97,18 +97,19 @@ class UtteranceContextEncoder(nn.Module):
         return torch.zeros(1, batch_size, self.hidden_size).to(device)
 
 class UtteranceDecoder(nn.Module):
-    def __init__(self, utterance_hidden_size, utt_embed_size, utt_vocab_size):
+    def __init__(self, utterance_hidden_size, utt_embed_size, utt_vocab_size, da_vocab_size):
         super(UtteranceDecoder, self).__init__()
         self.hidden_size = utterance_hidden_size
         self.embed_size = utt_embed_size
         self.vocab_size = utt_vocab_size
+        self.da_vocab_size = da_vocab_size
 
         self.ye = nn.Embedding(self.vocab_size, self.embed_size)
         self.eh = nn.Linear(self.embed_size, self.hidden_size)
         self.hh = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
         self.he = nn.Linear(self.hidden_size, self.embed_size)
         self.ey = nn.Linear(self.embed_size, self.vocab_size)
-        self.th = nn.Linear(self.hidden_size + 43, self.hidden_size)
+        self.th = nn.Linear(self.hidden_size + self.da_vocab_size, self.hidden_size)
 
     def forward(self, Y, hidden, tag=None):
         h = F.tanh(self.eh(self.ye(Y)))

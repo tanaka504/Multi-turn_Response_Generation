@@ -5,6 +5,7 @@ line_pattern = re.compile(r'^(.*?)\t(.*?)\t(.*?)$')
 
 tmp_da = {'A': None, 'B': None}
 
+
 def preprocess(dir_path, filename):
     with open(os.path.join(dir_path, filename), 'r') as f, \
         open(os.path.join('./data/corpus/', filename[:-7] + 'jsonlines'), 'w') as out_f:

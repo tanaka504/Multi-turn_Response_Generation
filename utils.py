@@ -172,7 +172,10 @@ class MPMI:
 
 
 def create_traindata(config, prefix='train'):
-    file_pattern = re.compile(r'^sw_{}_([0-9]*?)\.jsonlines$'.format(prefix))
+    if config['lang'] == 'en':
+        file_pattern = re.compile(r'^sw_{}_([0-9]*?)\.jsonlines$'.format(prefix))
+    elif config['lang'] == 'ja':
+        file_pattern = re.compile(r'^data([0-9]*?)\_{}\_([0-9]*?)\.jsonlines$'.format(prefix))
     files = [f for f in os.listdir(config['train_path']) if file_pattern.match(f)]
     da_posts = []
     da_cmnts = []
@@ -190,34 +193,24 @@ def create_traindata(config, prefix='train'):
             # 1line 1turn
             for idx, line in enumerate(data, 1):
                 jsondata = json.loads(line)
-                # single-turn multi dialogue case
-                if config['multi_dialogue']:
-                    for da, utt in zip(jsondata['DA'], jsondata['sentence']):
+                for da, utt in zip(jsondata['DA'], jsondata['sentence']):
+                    if config['lang'] == 'en':
                         utt = [BOS_token] + en_preprocess(utt) + [EOS_token]
-                        da_seq.append(da)
-                        utt_seq.append(utt)
-                        turn_seq.append(0)
-                    turn_seq[-1] = 1
-                # single-turn single dialogue case
-                else:
-                    da_seq.append(jsondata['DA'][-1])
-                    utt_seq.append(jsondata['sentence'][-1].split(' '))
+                    else:
+                        utt = [BOS_token] + utt.split(' ') + [EOS_token]
+                    da_seq.append(da)
+                    utt_seq.append(utt)
+                    turn_seq.append(0)
+                turn_seq[-1] = 1
             da_seq = [da for da in da_seq]
         if len(da_seq) <= config['window_size']: continue
-        if config['state']:
-            for i in range(max(1, len(da_seq) - 1 - config['window_size'])):
-                assert len(da_seq[i:min(len(da_seq)-1, i + config['window_size'])]) >= config['window_size'], filename
-                da_posts.append(da_seq[i:min(len(da_seq)-1, i + config['window_size'])])
-                da_cmnts.append(da_seq[1 + i:min(len(da_seq), 1 + i + config['window_size'])])
-                utt_posts.append(utt_seq[i:min(len(da_seq)-1, i + config['window_size'])])
-                utt_cmnts.append(utt_seq[1 + i:min(len(da_seq), 1 + i + config['window_size'])])
-                turn.append(turn_seq[i:min(len(da_seq), i + config['window_size'])])
-        else:
-            da_posts.append(da_seq[:-1])
-            da_cmnts.append(da_seq[1:])
-            utt_posts.append(utt_seq[:-1])
-            utt_cmnts.append(utt_seq[1:])
-            turn.append(turn_seq[:-1])
+        for i in range(max(1, len(da_seq) - 1 - config['window_size'])):
+            assert len(da_seq[i:min(len(da_seq)-1, i + config['window_size'])]) >= config['window_size'], filename
+            da_posts.append(da_seq[i:min(len(da_seq)-1, i + config['window_size'])])
+            da_cmnts.append(da_seq[1 + i:min(len(da_seq), 1 + i + config['window_size'])])
+            utt_posts.append(utt_seq[i:min(len(da_seq)-1, i + config['window_size'])])
+            utt_cmnts.append(utt_seq[1 + i:min(len(da_seq), 1 + i + config['window_size'])])
+            turn.append(turn_seq[i:min(len(da_seq), i + config['window_size'])])
     assert len(da_posts) == len(da_cmnts), 'Unexpect length da_posts and da_cmnts'
     assert len(utt_posts) == len(utt_cmnts), 'Unexpect length utt_posts and utt_cmnts'
     assert all(len(ele) == config['window_size'] for ele in da_posts), {len(ele) for ele in da_posts}
@@ -227,20 +220,10 @@ def easy_damsl(tag):
     easy_tag = [k for k, v in damsl_align.items() if tag in v]
     return easy_tag[0] if not len(easy_tag) < 1 else tag
 
-def separate_data(posts, cmnts, turn):
-    split_size = round(len(posts) / 10)
-    if split_size == 0: split_size = 1
-    X_train, Y_train, Tturn = posts[split_size * 2:], cmnts[split_size * 2:], turn[split_size * 2:]
-    X_valid, Y_valid, Vturn = posts[split_size: split_size * 2], cmnts[split_size: split_size * 2], turn[split_size: split_size * 2]
-    X_test, Y_test, Testturn = posts[:split_size], cmnts[:split_size], turn[:split_size]
-    assert len(X_train) == len(Y_train), 'Unexpect to separate train data'
-    return X_train, Y_train, X_valid, Y_valid, X_test, Y_test, Tturn, Vturn, Testturn
-
 def en_preprocess(utterance):
     # utterance = re.sub(r'\-\-', '', utterance)
     if utterance == '': return ['<Silence>']
     return tokenize.word_tokenize(utterance.lower())
-
 
 def makefig(X, Y, xlabel, ylabel, imgname):
     plt.figure(figsize=(12, 6))

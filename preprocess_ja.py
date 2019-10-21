@@ -1,4 +1,5 @@
 import re, os, json
+import random
 import MeCab
 
 
@@ -12,6 +13,15 @@ out_dir = './data/corpus/jaist/'
 line_pattern = re.compile(r'^(.*?)\t(.*?)\t(.*?)\t(.*?)\t(.*?)\t(.*?)$')
 file_pattern = re.compile(r'^data([0-9]*?)\.txt$')
 tagger = MeCab.Tagger('-Owakati')
+
+def data_split(files):
+    indexes = [i for i in range(len(files))]
+    random.shuffle(indexes)
+    dev_test = len(files) // 10
+    test_files = [files[x] for x in indexes[:dev_test]]
+    dev_files = [files[x] for x in indexes[dev_test: dev_test*2]]
+    train_files = [files[x] for x in indexes[dev_test*2:]]
+    return train_files, dev_files, test_files
 
 
 def sentence_cleaner(sentence):
@@ -33,11 +43,11 @@ def conv_split(m):
 
     return False
 
-def preprocess(filename):
+def preprocess(filename, prefix):
     serial = 0
     conv_turn = 0
     f = open(os.path.join(corpus_dir, filename), 'r')
-    out_f = open(os.path.join(out_dir, '{}_0.jsonlines'.format(filename.split('.')[0])), 'w')
+    out_f = open(os.path.join(out_dir, '{}_{}_0.jsonlines'.format(filename.split('.')[0], prefix)), 'w')
     das = []
     sentences = []
     for line in f.readlines():
@@ -45,7 +55,7 @@ def preprocess(filename):
         if conv_split(m) and conv_turn > 0:
             out_f.close()
             serial += 1
-            out_f = open(os.path.join(out_dir, '{}_{}.jsonlines'.format(filename.split('.')[0], serial)), 'w')
+            out_f = open(os.path.join(out_dir, '{}_{}_{}.jsonlines'.format(filename.split('.')[0], prefix, serial)), 'w')
             das = []
             sentences = []
             conv_turn = 0
@@ -68,10 +78,17 @@ def preprocess(filename):
 
 def main():
     files = [f for f in os.listdir(corpus_dir) if file_pattern.match(f)]
-    for idx, filename in enumerate(files, 1):
-        print('\r *** {}/{} ***'.format(idx, len(files)), end='')
-        preprocess(filename)
-    print()
+
+    def process(files, prefix):
+        for idx, filename in enumerate(files, 1):
+            print('\r {} *** {}/{} ***'.format(prefix, idx, len(files)), end='')
+            preprocess(filename, prefix)
+        print()
+
+    train, dev, test = data_split(files)
+    process(train, 'train')
+    process(dev, 'dev')
+    process(test, 'test')
 
 if __name__ == '__main__':
     main()
