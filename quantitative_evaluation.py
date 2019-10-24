@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from scipy.spatial.distance import cosine
 from pprint import pprint
-from NRG_evaluation import BoW_score
+from NRG_evaluation import BoW_score, Distinct
 
 
 hyp_pattern = re.compile(r'^\<BOS\> (.*?)\<EOS\>$')
@@ -24,12 +24,18 @@ def get_dataframe(result):
                        'ref_len': [], 'ref_txt': []})
 
     for idx, case in enumerate(result):
-        df.loc[idx] = [case['DA_preds'][0],
-                       case['DA_trues'][0],
-                       len(case['hyps'][0].split(' ')),
-                       re.sub(r'\<unk\>', '<UNK>', case['hyps'][0]),
-                       len(case['refs'][0].split(' ')),
-                       re.sub(r'\<unk\>', '<UNK>', case['refs'][0])]
+        # df.loc[idx] = [case['DA_preds'][0],
+        #                case['DA_trues'][0],
+        #                len(case['hyps'][0].split(' ')),
+        #                re.sub(r'\<unk\>', '<UNK>', case['hyps'][0]),
+        #                len(case['refs'][0].split(' ')),
+        #                re.sub(r'\<unk\>', '<UNK>', case['refs'][0])]
+        df.loc[idx] = [case['DA_preds'],
+                       case['DA_trues'],
+                       len(hyp_pattern.search(case['hyp']).group(1).split(' ')),
+                       re.sub(r'\<unk\>', '<UNK>', hyp_pattern.search(case['hyp']).group(1)),
+                       len(hyp_pattern.search(case['ref']).group(1).split(' ')),
+                       re.sub(r'\<unk\>', '<UNK>', case['ref'])]
     return df
 
 def plotfig(X1, Y1, Y2, xlabel, ylabel, imgname):
@@ -53,9 +59,15 @@ def quantitative_evaluation(expr):
     y_true = []
     y_pred = []
     for ele in result:
-        y_true.append(ele['DA_preds'][0])
-        y_pred.append(ele['DA_trues'][0])
+        y_true.append(ele['DA_pred'])
+        y_pred.append(ele['DA_true'])
     calc_average(y_true=y_true, y_pred=y_pred)
+
+    # calc. distinct
+    hyps = df_result['hyp_txt']
+    distinct = Distinct(sentences=hyps)
+    print('Distinct-1: {}'.format(distinct.score(1)))
+    print('Distinct-2: {}'.format(distinct.score(2)))
     
     # make documents for each dialogue-act
     documents = {tag : ' '.join([sentence for sentence in df_result[df_result['DA_true'] == tag]['ref_txt']]) for tag in set(df_result['DA_true'])}
@@ -196,10 +208,9 @@ def merge_df(_df_corr, _df_mpmi, _df_m2m):
 
 
 def main():
-    # df_result, df_corr, df_mpmi = quantitative_evaluation('kgCVAE_DA_catLater')
-    df_m2m = kgCVAE_evaluation('kgCVAE_w2v')
-    print(df_m2m)
-    input()
+    df_result, df_corr, df_mpmi = quantitative_evaluation('separate_speaker')
+    # df_m2m = kgCVAE_evaluation('kgCVAE_w2v')
+
     experiments = ['kgCVAE_DA_woFeat_catLater']
     for expr in experiments:
         print(expr)
@@ -208,7 +219,7 @@ def main():
         # df_corr = pd.merge(df_corr, _df_corr, on='1-Index', how='outer')
         # df_mpmi = pd.merge(df_mpmi, _df_mpmi, on='1-Index', how='outer')
         df_m2m = pd.concat([df_m2m, _df_m2m], axis=1)
-    merge_df(df_corr, df_mpmi, df_m2m)
+    # merge_df(df_corr, df_mpmi, df_m2m)
     # df_corr.to_csv('./data/results/20190918_keyword_correlation.csv')
     # df_mpmi.to_csv('./data/results/20190918_mpmi_merge_last.csv')
     # df_m2m.to_csv('./data/results/20190923_many2many_eval.csv')

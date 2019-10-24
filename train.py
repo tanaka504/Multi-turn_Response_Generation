@@ -148,6 +148,8 @@ def train(experiment, fine_tuning=False):
 
     start = time.time()
     _valid_loss = None
+    _train_loss = None
+    early_stop = 0
 
     for e in range(config['EPOCH']):
         tmp_time = time.time()
@@ -240,34 +242,67 @@ def train(experiment, fine_tuning=False):
 
         if _valid_loss is None:
             if config['use_da']:
-                torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_statebest.model'))
-                torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_statebest.model'))
-                torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_statebest.model'))
+                torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_validbest.model'))
+                torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_validbest.model'))
+                torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_validbest.model'))
 
-            torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_statebest.model'))
-            torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_statebest.model'))
-            torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_statebest.model'))
+            torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_validbest.model'))
+            torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_validbest.model'))
+            torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_validbest.model'))
 
             _valid_loss = valid_loss
 
         else:
             if _valid_loss > valid_loss:
                 if config['use_da']:
-                    torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_statebest.model'))
-                    torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_statebest.model'))
-                    torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_statebest.model'))
+                    torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_validbest.model'))
+                    torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_validbest.model'))
+                    torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_validbest.model'))
 
-                torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_statebest.model'))
-                torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_statebest.model'))
-                torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_statebest.model'))
+                torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_validbest.model'))
+                torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_validbest.model'))
+                torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_validest.model'))
 
                 _valid_loss = valid_loss
+                print('valid loss update, save model')
 
+        if _train_loss is None:
+            if config['use_da']:
+                torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_trainbest.model'))
+                torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_trainbest.model'))
+                torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_trainbest.model'))
 
+            torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_trainbest.model'))
+            torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_trainbest.model'))
+            torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_trainbest.model'))
+
+            _train_loss = print_total_loss
+
+        else:
+            if _train_loss > print_total_loss:
+                if config['use_da']:
+                    torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_trainbest.model'))
+                    torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_trainbest.model'))
+                    torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_trainbest.model'))
+
+                torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_trainbest.model'))
+                torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_trainbest.model'))
+                torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_trainbest.model'))
+
+                _train_loss = print_total_loss
+                early_stop = 0
+                print('train loss update, save model')
+            else:
+                early_stop += 1
+                print('early stopping count | {}/{}'.format(early_stop, config['EARLY_STOP']))
+                if early_stop > config['EARLY_STOP']:
+                    break
+
+        # logging
+        print_loss_avg = print_total_loss / config['LOGGING_FREQ']
+        print_total_loss = 0
+        print('steps %d\tloss %.4f\tvalid loss %.4f | exec time %.4f' % (e + 1, print_loss_avg, valid_loss, time.time() - tmp_time))
         if (e + 1) % config['LOGGING_FREQ'] == 0:
-            print_loss_avg = print_total_loss / config['LOGGING_FREQ']
-            print_total_loss = 0
-            print('steps %d\tloss %.4f\tvalid loss %.4f | exec time %.4f' % (e + 1, print_loss_avg, valid_loss, time.time() - tmp_time))
             plot_loss_avg = plot_total_loss / config['LOGGING_FREQ']
             plot_losses.append(plot_loss_avg)
             plot_total_loss = 0
@@ -278,7 +313,6 @@ def train(experiment, fine_tuning=False):
                 torch.save(da_encoder.state_dict(), os.path.join(config['log_dir'], 'enc_state{}.model'.format(e + 1)))
                 torch.save(da_context.state_dict(), os.path.join(config['log_dir'], 'context_state{}.model'.format(e + 1)))
                 torch.save(da_decoder.state_dict(), os.path.join(config['log_dir'], 'dec_state{}.model'.format(e + 1)))
-
             torch.save(utt_encoder.state_dict(), os.path.join(config['log_dir'], 'utt_enc_state{}.model'.format(e + 1)))
             torch.save(utt_decoder.state_dict(), os.path.join(config['log_dir'], 'utt_dec_state{}.model'.format(e + 1)))
             torch.save(utt_context.state_dict(), os.path.join(config['log_dir'], 'utt_context_state{}.model'.format(e + 1)))
